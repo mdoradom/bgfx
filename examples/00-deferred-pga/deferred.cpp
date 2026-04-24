@@ -7,6 +7,16 @@
 namespace
 {
 
+// Deferred pipeline passes added incrementally in later milestones.
+enum RenderPass : bgfx::ViewId
+{
+	RENDER_PASS_GEOMETRY = 0,
+	RENDER_PASS_LIGHT = 1,
+	RENDER_PASS_COMBINE = 2,
+	RENDER_PASS_DEBUG = 3,
+	RENDER_PASS_SHADOW = 4,
+};
+
 class Deferred : public entry::AppI
 {
 public:
@@ -17,6 +27,10 @@ public:
 		, m_enableIBL(true)
 		, m_showGBuffer(false)
 		, m_showShadowMap(false)
+		, m_caps(NULL)
+		, m_oldWidth(0)
+		, m_oldHeight(0)
+		, m_oldReset(0)
 		, m_shadowResolution(2048)
 		, m_shadowBias(0.0015f)
 		, m_shadowNormalBias(0.02f)
@@ -45,15 +59,25 @@ public:
 		init.resolution.reset  = m_reset;
 		bgfx::init(init);
 
-		const bgfx::Caps* caps = bgfx::getCaps();
-		m_supportedBackend = caps->rendererType == bgfx::RendererType::OpenGL
-			|| caps->rendererType == bgfx::RendererType::Vulkan;
+		m_caps = bgfx::getCaps();
+		m_supportedBackend = m_caps->rendererType == bgfx::RendererType::OpenGL
+			|| m_caps->rendererType == bgfx::RendererType::Vulkan;
+
+		m_oldWidth = m_width;
+		m_oldHeight = m_height;
+		m_oldReset = m_reset;
+
+		bgfx::setViewName(RENDER_PASS_GEOMETRY, "Geometry");
+		bgfx::setViewName(RENDER_PASS_LIGHT, "Light");
+		bgfx::setViewName(RENDER_PASS_COMBINE, "Combine");
+		bgfx::setViewName(RENDER_PASS_DEBUG, "Debug");
+		bgfx::setViewName(RENDER_PASS_SHADOW, "Shadow");
 
 		// Enable debug text.
 		bgfx::setDebug(m_debug);
 
 		// Set view 0 clear state.
-		bgfx::setViewClear(0
+		bgfx::setViewClear(RENDER_PASS_GEOMETRY
 			, BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
 			, 0x303030ff
 			, 1.0f
@@ -77,6 +101,15 @@ public:
 	{
 		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
 		{
+			const bool resized = m_oldWidth != m_width || m_oldHeight != m_height || m_oldReset != m_reset;
+			if (resized)
+			{
+				// Later milestones recreate GBuffer/light/shadow targets here.
+				m_oldWidth = m_width;
+				m_oldHeight = m_height;
+				m_oldReset = m_reset;
+			}
+
 			imguiBeginFrame(m_mouseState.m_mx
 				,  m_mouseState.m_my
 				, (m_mouseState.m_buttons[entry::MouseButton::Left  ] ? IMGUI_MBUT_LEFT   : 0)
@@ -111,11 +144,11 @@ public:
 			imguiEndFrame();
 
 			// Set view 0 default viewport.
-			bgfx::setViewRect(0, 0, 0, uint16_t(m_width), uint16_t(m_height) );
+			bgfx::setViewRect(RENDER_PASS_GEOMETRY, 0, 0, uint16_t(m_width), uint16_t(m_height) );
 
 			// This dummy draw call is here to make sure that view 0 is cleared
 			// if no other draw calls are submitted to view 0.
-			bgfx::touch(0);
+			bgfx::touch(RENDER_PASS_GEOMETRY);
 
 			// Use debug font to print information about this example.
 			bgfx::dbgTextClear();
@@ -170,6 +203,12 @@ public:
 	bool m_enableIBL;
 	bool m_showGBuffer;
 	bool m_showShadowMap;
+	const bgfx::Caps* m_caps;
+
+	uint32_t m_oldWidth;
+	uint32_t m_oldHeight;
+	uint32_t m_oldReset;
+
 	uint16_t m_shadowResolution;
 	float m_shadowBias;
 	float m_shadowNormalBias;
