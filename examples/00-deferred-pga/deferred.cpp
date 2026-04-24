@@ -3,7 +3,7 @@
 #include <bx/uint32_t.h>
 #include "common.h"
 #include "bgfx_utils.h"
-#include "logo.h"
+#include "camera.h"
 #include "imgui/imgui.h"
 
 namespace
@@ -111,6 +111,20 @@ static const uint16_t s_cubeIndices[36] =
 	21, 23, 22,
 };
 
+static PosNormalTexcoordVertex s_planeVertices[4] =
+{
+	{-20.0f, 0.0f,  20.0f, encodeNormalRgba8(0.0f, 1.0f, 0.0f),      0,      0},
+	{ 20.0f, 0.0f,  20.0f, encodeNormalRgba8(0.0f, 1.0f, 0.0f), 0x7fff,      0},
+	{-20.0f, 0.0f, -20.0f, encodeNormalRgba8(0.0f, 1.0f, 0.0f),      0, 0x7fff},
+	{ 20.0f, 0.0f, -20.0f, encodeNormalRgba8(0.0f, 1.0f, 0.0f), 0x7fff, 0x7fff},
+};
+
+static const uint16_t s_planeIndices[6] =
+{
+	0, 1, 2,
+	1, 3, 2,
+};
+
 void screenSpaceQuad(bool _originBottomLeft)
 {
 	if (3 == bgfx::getAvailTransientVertexBuffer(3, PosTexCoord0Vertex::ms_layout) )
@@ -182,6 +196,8 @@ public:
 	{
 		m_vbh.idx = bgfx::kInvalidHandle;
 		m_ibh.idx = bgfx::kInvalidHandle;
+		m_planeVbh.idx = bgfx::kInvalidHandle;
+		m_planeIbh.idx = bgfx::kInvalidHandle;
 		s_texColor.idx = bgfx::kInvalidHandle;
 		s_albedo.idx = bgfx::kInvalidHandle;
 		s_light.idx = bgfx::kInvalidHandle;
@@ -334,6 +350,9 @@ public:
 		m_vbh = bgfx::createVertexBuffer(bgfx::makeRef(s_cubeVertices, sizeof(s_cubeVertices) ), PosNormalTexcoordVertex::ms_layout);
 		m_ibh = bgfx::createIndexBuffer(bgfx::makeRef(s_cubeIndices, sizeof(s_cubeIndices) ) );
 
+		m_planeVbh = bgfx::createVertexBuffer(bgfx::makeRef(s_planeVertices, sizeof(s_planeVertices) ), PosNormalTexcoordVertex::ms_layout);
+		m_planeIbh = bgfx::createIndexBuffer(bgfx::makeRef(s_planeIndices, sizeof(s_planeIndices) ) );
+
 		s_texColor = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
 		s_albedo = bgfx::createUniform("s_albedo", bgfx::UniformType::Sampler);
 		s_light = bgfx::createUniform("s_light", bgfx::UniformType::Sampler);
@@ -358,6 +377,10 @@ public:
 		{
 			createFrameBuffers();
 		}
+
+		cameraCreate();
+		cameraSetPosition({ 0.0f, 10.0f, -25.0f });
+		cameraSetVerticalAngle(-0.3f);
 
 		imguiCreate();
 	}
@@ -461,6 +484,18 @@ public:
 			bgfx::destroy(m_vbh);
 		}
 
+		if (bgfx::isValid(m_planeIbh) )
+		{
+			bgfx::destroy(m_planeIbh);
+		}
+
+		if (bgfx::isValid(m_planeVbh) )
+		{
+			bgfx::destroy(m_planeVbh);
+		}
+
+		cameraDestroy();
+
 		imguiDestroy();
 
 		// Shutdown bgfx.
@@ -538,9 +573,10 @@ public:
 			{
 				float view[16];
 				float proj[16];
-				const bx::Vec3 eye = { 0.0f, 6.0f, -18.0f };
-				const bx::Vec3 at = { 0.0f, 0.0f, 0.0f };
-				bx::mtxLookAt(view, eye, at);
+
+				cameraUpdate(0.016f, m_mouseState);
+				cameraGetViewMtx(view);
+
 				bx::mtxProj(proj, 60.0f, float(m_width) / float(m_height), 0.1f, 100.0f, m_caps->homogeneousDepth);
 
 				float ortho[16];
@@ -553,7 +589,7 @@ public:
 				const bx::Vec3 lightEye = bx::mul(lightDir, -20.0f);
 				const bx::Vec3 lightAt = { 0.0f, 0.0f, 0.0f };
 				bx::mtxLookAt(lightView, lightEye, lightAt);
-				bx::mtxOrtho(lightProj, -10.0f, 10.0f, -10.0f, 10.0f, 1.0f, 50.0f, 0.0f, m_caps->homogeneousDepth);
+				bx::mtxOrtho(lightProj, -15.0f, 15.0f, -15.0f, 15.0f, 1.0f, 50.0f, 0.0f, m_caps->homogeneousDepth);
 
 				bgfx::setViewRect(RENDER_PASS_SHADOW, 0, 0, m_shadowResolution, m_shadowResolution);
 				bgfx::setViewRect(RENDER_PASS_GEOMETRY, 0, 0, uint16_t(m_width), uint16_t(m_height) );
@@ -575,18 +611,34 @@ public:
 
 				bgfx::setViewClear(RENDER_PASS_SHADOW, BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
 
+				// Render Plane
+				float identity[16];
+				bx::mtxIdentity(identity);
+				bgfx::setTransform(identity);
+				bgfx::setVertexBuffer(0, m_planeVbh);
+				bgfx::setIndexBuffer(m_planeIbh);
+				bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
+				bgfx::submit(RENDER_PASS_SHADOW, m_shadowProgram);
+
+				bgfx::setTransform(identity);
+				bgfx::setTexture(0, s_texColor, m_textureColor);
+				bgfx::setVertexBuffer(0, m_planeVbh);
+				bgfx::setIndexBuffer(m_planeIbh);
+				bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA);
+				bgfx::submit(RENDER_PASS_GEOMETRY, m_geomProgram);
+
 				const float time = float(double(bx::getHPCounter()) / double(bx::getHPFrequency()));
 				const uint32_t dim = 5;
-				const float offset = float(dim - 1) * 1.8f * 0.5f;
+				const float offset = float(dim - 1) * 3.0f * 0.5f;
 				for (uint32_t yy = 0; yy < dim; ++yy)
 				{
 					for (uint32_t xx = 0; xx < dim; ++xx)
 					{
 						float mtx[16];
 						bx::mtxRotateXY(mtx, time * 0.37f + xx * 0.21f, time * 0.23f + yy * 0.37f);
-						mtx[12] = -offset + float(xx) * 1.8f;
-						mtx[13] = -offset + float(yy) * 1.8f;
-						mtx[14] = 0.0f;
+						mtx[12] = -offset + float(xx) * 3.0f;
+						mtx[13] = 2.0f + bx::sin(time + float(xx+yy)*0.5f) * 1.0f;
+						mtx[14] = -offset + float(yy) * 3.0f;
 
 						bgfx::setTransform(mtx);
 						bgfx::setVertexBuffer(0, m_vbh);
@@ -687,15 +739,6 @@ public:
 				bgfx::dbgTextPrintf(0, 1, 0x2f, "Deferred Step 4 active: directional shadow map.");
 			}
 
-			bgfx::dbgTextImage(
-				  bx::max<uint16_t>(uint16_t(stats->textWidth/2), 20)-20
-				, bx::max<uint16_t>(uint16_t(stats->textHeight/2),  6)-6
-				, 40
-				, 12
-				, s_logo
-				, 160
-				);
-
 			bgfx::dbgTextPrintf(0, 3, 0x0f, "Backbuffer %dW x %dH in pixels, debug text %dW x %dH in characters."
 				, stats->width
 				, stats->height
@@ -731,6 +774,8 @@ public:
 
 	bgfx::VertexBufferHandle m_vbh;
 	bgfx::IndexBufferHandle m_ibh;
+	bgfx::VertexBufferHandle m_planeVbh;
+	bgfx::IndexBufferHandle m_planeIbh;
 	bgfx::UniformHandle s_texColor;
 	bgfx::UniformHandle s_albedo;
 	bgfx::UniformHandle s_light;
