@@ -1,3 +1,5 @@
+#include <bx/math.h>
+#include <bx/timer.h>
 #include <bx/uint32_t.h>
 #include "common.h"
 #include "bgfx_utils.h"
@@ -17,12 +19,153 @@ enum RenderPass : bgfx::ViewId
 	RENDER_PASS_SHADOW = 4,
 };
 
+struct PosNormalTexcoordVertex
+{
+	float m_x;
+	float m_y;
+	float m_z;
+	uint32_t m_normal;
+	int16_t m_u;
+	int16_t m_v;
+
+	static void init()
+	{
+		ms_layout
+			.begin()
+			.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+			.add(bgfx::Attrib::Normal, 4, bgfx::AttribType::Uint8, true, true)
+			.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Int16, true, true)
+			.end();
+	}
+
+	static bgfx::VertexLayout ms_layout;
+};
+
+bgfx::VertexLayout PosNormalTexcoordVertex::ms_layout;
+
+struct PosTexCoord0Vertex
+{
+	float m_x;
+	float m_y;
+	float m_z;
+	float m_u;
+	float m_v;
+
+	static void init()
+	{
+		ms_layout
+			.begin()
+			.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+			.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+			.end();
+	}
+
+	static bgfx::VertexLayout ms_layout;
+};
+
+bgfx::VertexLayout PosTexCoord0Vertex::ms_layout;
+
+static PosNormalTexcoordVertex s_cubeVertices[24] =
+{
+	{-1.0f,  1.0f,  1.0f, encodeNormalRgba8( 0.0f,  0.0f,  1.0f),      0,      0 },
+	{ 1.0f,  1.0f,  1.0f, encodeNormalRgba8( 0.0f,  0.0f,  1.0f), 0x7fff,      0 },
+	{-1.0f, -1.0f,  1.0f, encodeNormalRgba8( 0.0f,  0.0f,  1.0f),      0, 0x7fff },
+	{ 1.0f, -1.0f,  1.0f, encodeNormalRgba8( 0.0f,  0.0f,  1.0f), 0x7fff, 0x7fff },
+	{-1.0f,  1.0f, -1.0f, encodeNormalRgba8( 0.0f,  0.0f, -1.0f),      0,      0 },
+	{ 1.0f,  1.0f, -1.0f, encodeNormalRgba8( 0.0f,  0.0f, -1.0f), 0x7fff,      0 },
+	{-1.0f, -1.0f, -1.0f, encodeNormalRgba8( 0.0f,  0.0f, -1.0f),      0, 0x7fff },
+	{ 1.0f, -1.0f, -1.0f, encodeNormalRgba8( 0.0f,  0.0f, -1.0f), 0x7fff, 0x7fff },
+	{-1.0f,  1.0f,  1.0f, encodeNormalRgba8( 0.0f,  1.0f,  0.0f),      0,      0 },
+	{ 1.0f,  1.0f,  1.0f, encodeNormalRgba8( 0.0f,  1.0f,  0.0f), 0x7fff,      0 },
+	{-1.0f,  1.0f, -1.0f, encodeNormalRgba8( 0.0f,  1.0f,  0.0f),      0, 0x7fff },
+	{ 1.0f,  1.0f, -1.0f, encodeNormalRgba8( 0.0f,  1.0f,  0.0f), 0x7fff, 0x7fff },
+	{-1.0f, -1.0f,  1.0f, encodeNormalRgba8( 0.0f, -1.0f,  0.0f),      0,      0 },
+	{ 1.0f, -1.0f,  1.0f, encodeNormalRgba8( 0.0f, -1.0f,  0.0f), 0x7fff,      0 },
+	{-1.0f, -1.0f, -1.0f, encodeNormalRgba8( 0.0f, -1.0f,  0.0f),      0, 0x7fff },
+	{ 1.0f, -1.0f, -1.0f, encodeNormalRgba8( 0.0f, -1.0f,  0.0f), 0x7fff, 0x7fff },
+	{ 1.0f, -1.0f,  1.0f, encodeNormalRgba8( 1.0f,  0.0f,  0.0f),      0,      0 },
+	{ 1.0f,  1.0f,  1.0f, encodeNormalRgba8( 1.0f,  0.0f,  0.0f), 0x7fff,      0 },
+	{ 1.0f, -1.0f, -1.0f, encodeNormalRgba8( 1.0f,  0.0f,  0.0f),      0, 0x7fff },
+	{ 1.0f,  1.0f, -1.0f, encodeNormalRgba8( 1.0f,  0.0f,  0.0f), 0x7fff, 0x7fff },
+	{-1.0f, -1.0f,  1.0f, encodeNormalRgba8(-1.0f,  0.0f,  0.0f),      0,      0 },
+	{-1.0f,  1.0f,  1.0f, encodeNormalRgba8(-1.0f,  0.0f,  0.0f), 0x7fff,      0 },
+	{-1.0f, -1.0f, -1.0f, encodeNormalRgba8(-1.0f,  0.0f,  0.0f),      0, 0x7fff },
+	{-1.0f,  1.0f, -1.0f, encodeNormalRgba8(-1.0f,  0.0f,  0.0f), 0x7fff, 0x7fff },
+};
+
+static const uint16_t s_cubeIndices[36] =
+{
+	 0,  2,  1,
+	 1,  2,  3,
+	 4,  5,  6,
+	 5,  7,  6,
+
+	 8, 10,  9,
+	 9, 10, 11,
+	12, 13, 14,
+	13, 15, 14,
+
+	16, 18, 17,
+	17, 18, 19,
+	20, 21, 22,
+	21, 23, 22,
+};
+
+void screenSpaceQuad(bool _originBottomLeft)
+{
+	if (3 == bgfx::getAvailTransientVertexBuffer(3, PosTexCoord0Vertex::ms_layout) )
+	{
+		bgfx::TransientVertexBuffer vb;
+		bgfx::allocTransientVertexBuffer(&vb, 3, PosTexCoord0Vertex::ms_layout);
+		PosTexCoord0Vertex* vertex = (PosTexCoord0Vertex*)vb.data;
+
+		const float minx = -1.0f;
+		const float maxx =  1.0f;
+		const float miny =  0.0f;
+		const float maxy =  2.0f;
+
+		float minv = 0.0f;
+		float maxv = 2.0f;
+		if (_originBottomLeft)
+		{
+			const float tmp = minv;
+			minv = maxv - 1.0f;
+			maxv = tmp + 1.0f;
+		}
+
+		vertex[0].m_x = minx;
+		vertex[0].m_y = miny;
+		vertex[0].m_z = 0.0f;
+		vertex[0].m_u = -1.0f;
+		vertex[0].m_v = minv;
+
+		vertex[1].m_x = maxx;
+		vertex[1].m_y = miny;
+		vertex[1].m_z = 0.0f;
+		vertex[1].m_u =  1.0f;
+		vertex[1].m_v = minv;
+
+		vertex[2].m_x = maxx;
+		vertex[2].m_y = maxy;
+		vertex[2].m_z = 0.0f;
+		vertex[2].m_u =  1.0f;
+		vertex[2].m_v = maxv;
+
+		bgfx::setVertexBuffer(0, &vb);
+	}
+}
+
 class Deferred : public entry::AppI
 {
 public:
 	Deferred(const char* _name, const char* _description, const char* _url)
 		: entry::AppI(_name, _description, _url)
+		, m_width(0)
+		, m_height(0)
+		, m_debug(0)
+		, m_reset(0)
 		, m_supportedBackend(false)
+		, m_deferredSupported(false)
 		, m_enableShadows(true)
 		, m_enableIBL(true)
 		, m_showGBuffer(false)
@@ -37,6 +180,72 @@ public:
 		, m_directionalIntensity(4.0f)
 		, m_ambientIblIntensity(1.0f)
 	{
+		m_vbh.idx = bgfx::kInvalidHandle;
+		m_ibh.idx = bgfx::kInvalidHandle;
+		s_texColor.idx = bgfx::kInvalidHandle;
+		s_albedo.idx = bgfx::kInvalidHandle;
+		s_light.idx = bgfx::kInvalidHandle;
+		m_geomProgram.idx = bgfx::kInvalidHandle;
+		m_combineProgram.idx = bgfx::kInvalidHandle;
+		m_debugProgram.idx = bgfx::kInvalidHandle;
+		m_textureColor.idx = bgfx::kInvalidHandle;
+		m_gbufferTex[0].idx = bgfx::kInvalidHandle;
+		m_gbufferTex[1].idx = bgfx::kInvalidHandle;
+		m_gbufferTex[2].idx = bgfx::kInvalidHandle;
+		m_lightBufferTex.idx = bgfx::kInvalidHandle;
+		m_gbuffer.idx = bgfx::kInvalidHandle;
+		m_lightBuffer.idx = bgfx::kInvalidHandle;
+	}
+
+	void destroyFrameBuffers()
+	{
+		if (bgfx::isValid(m_gbuffer) )
+		{
+			bgfx::destroy(m_gbuffer);
+		}
+		m_gbuffer.idx = bgfx::kInvalidHandle;
+		m_gbufferTex[0].idx = bgfx::kInvalidHandle;
+		m_gbufferTex[1].idx = bgfx::kInvalidHandle;
+		m_gbufferTex[2].idx = bgfx::kInvalidHandle;
+
+		if (bgfx::isValid(m_lightBuffer) )
+		{
+			bgfx::destroy(m_lightBuffer);
+		}
+		m_lightBuffer.idx = bgfx::kInvalidHandle;
+		m_lightBufferTex.idx = bgfx::kInvalidHandle;
+	}
+
+	void createFrameBuffers()
+	{
+		destroyFrameBuffers();
+
+		const uint64_t samplerFlags = 0
+			| BGFX_SAMPLER_MIN_POINT
+			| BGFX_SAMPLER_MAG_POINT
+			| BGFX_SAMPLER_MIP_POINT
+			| BGFX_SAMPLER_U_CLAMP
+			| BGFX_SAMPLER_V_CLAMP
+			;
+
+		bgfx::Attachment gbufferAt[3];
+		m_gbufferTex[0] = bgfx::createTexture2D(uint16_t(m_width), uint16_t(m_height), false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_RT | samplerFlags);
+		m_gbufferTex[1] = bgfx::createTexture2D(uint16_t(m_width), uint16_t(m_height), false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_RT | samplerFlags);
+
+		const bgfx::TextureFormat::Enum depthFormat =
+			bgfx::isTextureValid(0, false, 1, bgfx::TextureFormat::D32F, BGFX_TEXTURE_RT | samplerFlags)
+			? bgfx::TextureFormat::D32F
+			: bgfx::TextureFormat::D24;
+
+		m_gbufferTex[2] = bgfx::createTexture2D(uint16_t(m_width), uint16_t(m_height), false, 1, depthFormat, BGFX_TEXTURE_RT | samplerFlags);
+
+		gbufferAt[0].init(m_gbufferTex[0]);
+		gbufferAt[1].init(m_gbufferTex[1]);
+		gbufferAt[2].init(m_gbufferTex[2]);
+		m_gbuffer = bgfx::createFrameBuffer(BX_COUNTOF(gbufferAt), gbufferAt, true);
+
+		m_lightBufferTex = bgfx::createTexture2D(uint16_t(m_width), uint16_t(m_height), false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_RT | samplerFlags);
+		m_lightBuffer = bgfx::createFrameBuffer(1, &m_lightBufferTex, true);
 	}
 
 	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
@@ -62,6 +271,7 @@ public:
 		m_caps = bgfx::getCaps();
 		m_supportedBackend = m_caps->rendererType == bgfx::RendererType::OpenGL
 			|| m_caps->rendererType == bgfx::RendererType::Vulkan;
+		m_deferredSupported = m_caps->limits.maxFBAttachments >= 3;
 
 		m_oldWidth = m_width;
 		m_oldHeight = m_height;
@@ -84,11 +294,86 @@ public:
 			, 0
 			);
 
+		bgfx::setViewClear(RENDER_PASS_LIGHT
+			, BGFX_CLEAR_COLOR
+			, 0xffffffff
+			, 1.0f
+			, 0
+			);
+
+		PosNormalTexcoordVertex::init();
+		PosTexCoord0Vertex::init();
+
+		m_vbh = bgfx::createVertexBuffer(bgfx::makeRef(s_cubeVertices, sizeof(s_cubeVertices) ), PosNormalTexcoordVertex::ms_layout);
+		m_ibh = bgfx::createIndexBuffer(bgfx::makeRef(s_cubeIndices, sizeof(s_cubeIndices) ) );
+
+		s_texColor = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
+		s_albedo = bgfx::createUniform("s_albedo", bgfx::UniformType::Sampler);
+		s_light = bgfx::createUniform("s_light", bgfx::UniformType::Sampler);
+
+		m_geomProgram = loadProgram("vs_deferred_geom", "fs_deferred_geom");
+		m_combineProgram = loadProgram("vs_deferred_combine", "fs_deferred_combine");
+		m_debugProgram = loadProgram("vs_deferred_debug", "fs_deferred_debug");
+
+		m_textureColor = loadTexture("textures/fieldstone-rgba.dds");
+
+		if (m_supportedBackend && m_deferredSupported)
+		{
+			createFrameBuffers();
+		}
+
 		imguiCreate();
 	}
 
 	virtual int shutdown() override
 	{
+		destroyFrameBuffers();
+
+		if (bgfx::isValid(m_textureColor) )
+		{
+			bgfx::destroy(m_textureColor);
+		}
+
+		if (bgfx::isValid(m_debugProgram) )
+		{
+			bgfx::destroy(m_debugProgram);
+		}
+
+		if (bgfx::isValid(m_combineProgram) )
+		{
+			bgfx::destroy(m_combineProgram);
+		}
+
+		if (bgfx::isValid(m_geomProgram) )
+		{
+			bgfx::destroy(m_geomProgram);
+		}
+
+		if (bgfx::isValid(s_light) )
+		{
+			bgfx::destroy(s_light);
+		}
+
+		if (bgfx::isValid(s_albedo) )
+		{
+			bgfx::destroy(s_albedo);
+		}
+
+		if (bgfx::isValid(s_texColor) )
+		{
+			bgfx::destroy(s_texColor);
+		}
+
+		if (bgfx::isValid(m_ibh) )
+		{
+			bgfx::destroy(m_ibh);
+		}
+
+		if (bgfx::isValid(m_vbh) )
+		{
+			bgfx::destroy(m_vbh);
+		}
+
 		imguiDestroy();
 
 		// Shutdown bgfx.
@@ -102,9 +387,13 @@ public:
 		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
 		{
 			const bool resized = m_oldWidth != m_width || m_oldHeight != m_height || m_oldReset != m_reset;
+			if (resized && m_supportedBackend && m_deferredSupported)
+			{
+				createFrameBuffers();
+			}
+
 			if (resized)
 			{
-				// Later milestones recreate GBuffer/light/shadow targets here.
 				m_oldWidth = m_width;
 				m_oldHeight = m_height;
 				m_oldReset = m_reset;
@@ -143,12 +432,90 @@ public:
 
 			imguiEndFrame();
 
-			// Set view 0 default viewport.
-			bgfx::setViewRect(RENDER_PASS_GEOMETRY, 0, 0, uint16_t(m_width), uint16_t(m_height) );
+			const bool deferredReady = m_supportedBackend
+				&& m_deferredSupported
+				&& bgfx::isValid(m_gbuffer)
+				&& bgfx::isValid(m_lightBuffer)
+				&& bgfx::isValid(m_geomProgram)
+				&& bgfx::isValid(m_combineProgram)
+				&& bgfx::isValid(m_debugProgram)
+				&& bgfx::isValid(m_vbh)
+				&& bgfx::isValid(m_ibh)
+				&& bgfx::isValid(m_textureColor);
 
-			// This dummy draw call is here to make sure that view 0 is cleared
-			// if no other draw calls are submitted to view 0.
-			bgfx::touch(RENDER_PASS_GEOMETRY);
+			if (deferredReady)
+			{
+				float view[16];
+				float proj[16];
+				const bx::Vec3 eye = { 0.0f, 6.0f, -18.0f };
+				const bx::Vec3 at = { 0.0f, 0.0f, 0.0f };
+				bx::mtxLookAt(view, eye, at);
+				bx::mtxProj(proj, 60.0f, float(m_width) / float(m_height), 0.1f, 100.0f, m_caps->homogeneousDepth);
+
+				float ortho[16];
+				bx::mtxOrtho(ortho, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1000.0f, 0.0f, m_caps->homogeneousDepth);
+
+				bgfx::setViewRect(RENDER_PASS_GEOMETRY, 0, 0, uint16_t(m_width), uint16_t(m_height) );
+				bgfx::setViewRect(RENDER_PASS_LIGHT, 0, 0, uint16_t(m_width), uint16_t(m_height) );
+				bgfx::setViewRect(RENDER_PASS_COMBINE, 0, 0, uint16_t(m_width), uint16_t(m_height) );
+				bgfx::setViewRect(RENDER_PASS_DEBUG, 0, 0, uint16_t(m_width), uint16_t(m_height) );
+
+				bgfx::setViewFrameBuffer(RENDER_PASS_GEOMETRY, m_gbuffer);
+				bgfx::setViewFrameBuffer(RENDER_PASS_LIGHT, m_lightBuffer);
+				bgfx::setViewFrameBuffer(RENDER_PASS_COMBINE, BGFX_INVALID_HANDLE);
+				bgfx::setViewFrameBuffer(RENDER_PASS_DEBUG, BGFX_INVALID_HANDLE);
+
+				bgfx::setViewTransform(RENDER_PASS_GEOMETRY, view, proj);
+				bgfx::setViewTransform(RENDER_PASS_LIGHT, NULL, ortho);
+				bgfx::setViewTransform(RENDER_PASS_COMBINE, NULL, ortho);
+				bgfx::setViewTransform(RENDER_PASS_DEBUG, NULL, ortho);
+
+				const float time = float(double(bx::getHPCounter()) / double(bx::getHPFrequency()));
+				const uint32_t dim = 5;
+				const float offset = float(dim - 1) * 1.8f * 0.5f;
+				for (uint32_t yy = 0; yy < dim; ++yy)
+				{
+					for (uint32_t xx = 0; xx < dim; ++xx)
+					{
+						float mtx[16];
+						bx::mtxRotateXY(mtx, time * 0.37f + xx * 0.21f, time * 0.23f + yy * 0.37f);
+						mtx[12] = -offset + float(xx) * 1.8f;
+						mtx[13] = -offset + float(yy) * 1.8f;
+						mtx[14] = 0.0f;
+
+						bgfx::setTransform(mtx);
+						bgfx::setTexture(0, s_texColor, m_textureColor);
+						bgfx::setVertexBuffer(0, m_vbh);
+						bgfx::setIndexBuffer(m_ibh);
+						bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA);
+						bgfx::submit(RENDER_PASS_GEOMETRY, m_geomProgram);
+					}
+				}
+
+				// Step 2: keep light accumulation pass minimal by clearing to white.
+				bgfx::touch(RENDER_PASS_LIGHT);
+
+				if (m_showGBuffer)
+				{
+					bgfx::setTexture(0, s_texColor, m_gbufferTex[0]);
+					screenSpaceQuad(m_caps->originBottomLeft);
+					bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA);
+					bgfx::submit(RENDER_PASS_DEBUG, m_debugProgram);
+				}
+				else
+				{
+					bgfx::setTexture(0, s_albedo, m_gbufferTex[0]);
+					bgfx::setTexture(1, s_light, m_lightBufferTex);
+					screenSpaceQuad(m_caps->originBottomLeft);
+					bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA);
+					bgfx::submit(RENDER_PASS_COMBINE, m_combineProgram);
+				}
+			}
+			else
+			{
+				bgfx::setViewRect(RENDER_PASS_GEOMETRY, 0, 0, uint16_t(m_width), uint16_t(m_height) );
+				bgfx::touch(RENDER_PASS_GEOMETRY);
+			}
 
 			// Use debug font to print information about this example.
 			bgfx::dbgTextClear();
@@ -159,9 +526,13 @@ public:
 				bgfx::dbgTextPrintf(0, 1, 0x4f, "Deferred path fallback: backend not supported yet.");
 				bgfx::dbgTextPrintf(0, 2, 0x0f, "Use OpenGL or Vulkan to enable deferred + shadow map + IBL.");
 			}
+			else if (!m_deferredSupported)
+			{
+				bgfx::dbgTextPrintf(0, 1, 0x4f, "Deferred path fallback: MRT/depth framebuffer requirements missing.");
+			}
 			else
 			{
-				bgfx::dbgTextPrintf(0, 1, 0x2f, "Deferred WIP path active (OpenGL/Vulkan).");
+				bgfx::dbgTextPrintf(0, 1, 0x2f, "Deferred Step 2 active: geometry + combine + gbuffer debug.");
 			}
 
 			bgfx::dbgTextImage(
@@ -199,11 +570,26 @@ public:
 
 	// Deferred debug options.
 	bool m_supportedBackend;
+	bool m_deferredSupported;
 	bool m_enableShadows;
 	bool m_enableIBL;
 	bool m_showGBuffer;
 	bool m_showShadowMap;
 	const bgfx::Caps* m_caps;
+
+	bgfx::VertexBufferHandle m_vbh;
+	bgfx::IndexBufferHandle m_ibh;
+	bgfx::UniformHandle s_texColor;
+	bgfx::UniformHandle s_albedo;
+	bgfx::UniformHandle s_light;
+	bgfx::ProgramHandle m_geomProgram;
+	bgfx::ProgramHandle m_combineProgram;
+	bgfx::ProgramHandle m_debugProgram;
+	bgfx::TextureHandle m_textureColor;
+	bgfx::TextureHandle m_gbufferTex[3];
+	bgfx::TextureHandle m_lightBufferTex;
+	bgfx::FrameBufferHandle m_gbuffer;
+	bgfx::FrameBufferHandle m_lightBuffer;
 
 	uint32_t m_oldWidth;
 	uint32_t m_oldHeight;
