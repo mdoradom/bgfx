@@ -185,7 +185,12 @@ public:
 		s_texColor.idx = bgfx::kInvalidHandle;
 		s_albedo.idx = bgfx::kInvalidHandle;
 		s_light.idx = bgfx::kInvalidHandle;
+		s_normal.idx = bgfx::kInvalidHandle;
+		s_depth.idx = bgfx::kInvalidHandle;
+		u_lightDirIntensity.idx = bgfx::kInvalidHandle;
+		u_lightAmbient.idx = bgfx::kInvalidHandle;
 		m_geomProgram.idx = bgfx::kInvalidHandle;
+		m_lightProgram.idx = bgfx::kInvalidHandle;
 		m_combineProgram.idx = bgfx::kInvalidHandle;
 		m_debugProgram.idx = bgfx::kInvalidHandle;
 		m_textureColor.idx = bgfx::kInvalidHandle;
@@ -310,8 +315,13 @@ public:
 		s_texColor = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
 		s_albedo = bgfx::createUniform("s_albedo", bgfx::UniformType::Sampler);
 		s_light = bgfx::createUniform("s_light", bgfx::UniformType::Sampler);
+		s_normal = bgfx::createUniform("s_normal", bgfx::UniformType::Sampler);
+		s_depth = bgfx::createUniform("s_depth", bgfx::UniformType::Sampler);
+		u_lightDirIntensity = bgfx::createUniform("u_lightDirIntensity", bgfx::UniformType::Vec4);
+		u_lightAmbient = bgfx::createUniform("u_lightAmbient", bgfx::UniformType::Vec4);
 
 		m_geomProgram = loadProgram("vs_deferred_geom", "fs_deferred_geom");
+		m_lightProgram = loadProgram("vs_deferred_light", "fs_deferred_light");
 		m_combineProgram = loadProgram("vs_deferred_combine", "fs_deferred_combine");
 		m_debugProgram = loadProgram("vs_deferred_debug", "fs_deferred_debug");
 
@@ -344,6 +354,11 @@ public:
 			bgfx::destroy(m_combineProgram);
 		}
 
+		if (bgfx::isValid(m_lightProgram) )
+		{
+			bgfx::destroy(m_lightProgram);
+		}
+
 		if (bgfx::isValid(m_geomProgram) )
 		{
 			bgfx::destroy(m_geomProgram);
@@ -352,6 +367,26 @@ public:
 		if (bgfx::isValid(s_light) )
 		{
 			bgfx::destroy(s_light);
+		}
+
+		if (bgfx::isValid(s_depth) )
+		{
+			bgfx::destroy(s_depth);
+		}
+
+		if (bgfx::isValid(s_normal) )
+		{
+			bgfx::destroy(s_normal);
+		}
+
+		if (bgfx::isValid(u_lightAmbient) )
+		{
+			bgfx::destroy(u_lightAmbient);
+		}
+
+		if (bgfx::isValid(u_lightDirIntensity) )
+		{
+			bgfx::destroy(u_lightDirIntensity);
 		}
 
 		if (bgfx::isValid(s_albedo) )
@@ -437,6 +472,7 @@ public:
 				&& bgfx::isValid(m_gbuffer)
 				&& bgfx::isValid(m_lightBuffer)
 				&& bgfx::isValid(m_geomProgram)
+				&& bgfx::isValid(m_lightProgram)
 				&& bgfx::isValid(m_combineProgram)
 				&& bgfx::isValid(m_debugProgram)
 				&& bgfx::isValid(m_vbh)
@@ -492,8 +528,18 @@ public:
 					}
 				}
 
-				// Step 2: keep light accumulation pass minimal by clearing to white.
-				bgfx::touch(RENDER_PASS_LIGHT);
+				const bx::Vec3 lightDir = bx::normalize(bx::Vec3{ -0.35f, -1.0f, -0.2f });
+				float lightDirIntensity[4] = { lightDir.x, lightDir.y, lightDir.z, m_directionalIntensity };
+				lightDirIntensity[3] = m_directionalIntensity;
+				const float lightAmbient[4] = { m_enableIBL ? m_ambientIblIntensity : 0.0f, 0.0f, 0.0f, 0.0f };
+
+				bgfx::setUniform(u_lightDirIntensity, lightDirIntensity);
+				bgfx::setUniform(u_lightAmbient, lightAmbient);
+				bgfx::setTexture(0, s_normal, m_gbufferTex[1]);
+				bgfx::setTexture(1, s_depth, m_gbufferTex[2]);
+				screenSpaceQuad(m_caps->originBottomLeft);
+				bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA);
+				bgfx::submit(RENDER_PASS_LIGHT, m_lightProgram);
 
 				if (m_showGBuffer)
 				{
@@ -532,7 +578,7 @@ public:
 			}
 			else
 			{
-				bgfx::dbgTextPrintf(0, 1, 0x2f, "Deferred Step 2 active: geometry + combine + gbuffer debug.");
+				bgfx::dbgTextPrintf(0, 1, 0x2f, "Deferred Step 3 active: directional light pass + combine.");
 			}
 
 			bgfx::dbgTextImage(
@@ -582,7 +628,12 @@ public:
 	bgfx::UniformHandle s_texColor;
 	bgfx::UniformHandle s_albedo;
 	bgfx::UniformHandle s_light;
+	bgfx::UniformHandle s_normal;
+	bgfx::UniformHandle s_depth;
+	bgfx::UniformHandle u_lightDirIntensity;
+	bgfx::UniformHandle u_lightAmbient;
 	bgfx::ProgramHandle m_geomProgram;
+	bgfx::ProgramHandle m_lightProgram;
 	bgfx::ProgramHandle m_combineProgram;
 	bgfx::ProgramHandle m_debugProgram;
 	bgfx::TextureHandle m_textureColor;
