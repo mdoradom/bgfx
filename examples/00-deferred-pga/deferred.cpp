@@ -192,8 +192,11 @@ public:
 		, m_shadowBias(0.0015f)
 		, m_shadowNormalBias(0.02f)
 		, m_directionalIntensity(4.0f)
-		, m_ambientIblIntensity(1.0f)
+		, m_fillIntensity(1.0f)
+		, m_ambientIblIntensity(0.1f)
 	{
+		m_lightAngles[0] = -0.35f;
+		m_lightAngles[1] = -1.0f;
 		m_vbh.idx = bgfx::kInvalidHandle;
 		m_ibh.idx = bgfx::kInvalidHandle;
 		m_planeVbh.idx = bgfx::kInvalidHandle;
@@ -209,6 +212,7 @@ public:
 		u_lightMtx.idx = bgfx::kInvalidHandle;
 		u_shadowParams.idx = bgfx::kInvalidHandle;
 		u_invViewProj.idx = bgfx::kInvalidHandle;
+		u_camPos.idx = bgfx::kInvalidHandle;
 		m_geomProgram.idx = bgfx::kInvalidHandle;
 		m_lightProgram.idx = bgfx::kInvalidHandle;
 		m_combineProgram.idx = bgfx::kInvalidHandle;
@@ -360,10 +364,12 @@ public:
 		s_depth = bgfx::createUniform("s_depth", bgfx::UniformType::Sampler);
 		s_shadowMap = bgfx::createUniform("s_shadowMap", bgfx::UniformType::Sampler);
 		u_lightDirIntensity = bgfx::createUniform("u_lightDirIntensity", bgfx::UniformType::Vec4);
+		u_lightDirIntensity2 = bgfx::createUniform("u_lightDirIntensity2", bgfx::UniformType::Vec4);
 		u_lightAmbient = bgfx::createUniform("u_lightAmbient", bgfx::UniformType::Vec4);
 		u_lightMtx = bgfx::createUniform("u_lightMtx", bgfx::UniformType::Mat4);
 		u_shadowParams = bgfx::createUniform("u_shadowParams", bgfx::UniformType::Vec4);
 		u_invViewProj = bgfx::createUniform("u_invViewProjGeom", bgfx::UniformType::Mat4);
+		u_camPos = bgfx::createUniform("u_camPos", bgfx::UniformType::Vec4);
 
 		m_geomProgram = loadProgram("vs_deferred_geom", "fs_deferred_geom");
 		m_lightProgram = loadProgram("vs_deferred_light", "fs_deferred_light");
@@ -424,6 +430,11 @@ public:
 			bgfx::destroy(u_invViewProj);
 		}
 
+		if (bgfx::isValid(u_camPos) )
+		{
+			bgfx::destroy(u_camPos);
+		}
+
 		if (bgfx::isValid(u_shadowParams) )
 		{
 			bgfx::destroy(u_shadowParams);
@@ -462,6 +473,11 @@ public:
 		if (bgfx::isValid(u_lightDirIntensity) )
 		{
 			bgfx::destroy(u_lightDirIntensity);
+		}
+
+		if (bgfx::isValid(u_lightDirIntensity2) )
+		{
+			bgfx::destroy(u_lightDirIntensity2);
 		}
 
 		if (bgfx::isValid(s_albedo) )
@@ -549,8 +565,14 @@ public:
 			}
 			ImGui::SliderFloat("Shadow Bias", &m_shadowBias, 0.0001f, 0.01f, "%.4f", ImGuiSliderFlags_Logarithmic);
 			ImGui::SliderFloat("Normal Bias", &m_shadowNormalBias, 0.0f, 0.2f, "%.4f");
-			ImGui::SliderFloat("Directional Intensity", &m_directionalIntensity, 0.0f, 10.0f, "%.2f");
-			ImGui::SliderFloat("Ambient IBL Intensity", &m_ambientIblIntensity, 0.0f, 5.0f, "%.2f");
+			
+			ImGui::Separator();
+			ImGui::Text("Light Settings");
+			ImGui::SliderFloat("Light Azimuth", &m_lightAngles[0], -bx::kPi, bx::kPi);
+			ImGui::SliderFloat("Light Elevation", &m_lightAngles[1], -bx::kPi, 0.0f);
+			ImGui::SliderFloat("Sun Intensity", &m_directionalIntensity, 0.0f, 10.0f, "%.2f");
+			ImGui::SliderFloat("Fill Intensity", &m_fillIntensity, 0.0f, 5.0f, "%.2f");
+			ImGui::SliderFloat("Ambient Intensity", &m_ambientIblIntensity, 0.0f, 2.0f, "%.2f");
 			ImGui::End();
 
 			imguiEndFrame();
@@ -582,14 +604,21 @@ public:
 				float ortho[16];
 				bx::mtxOrtho(ortho, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1000.0f, 0.0f, m_caps->homogeneousDepth);
 
-				const bx::Vec3 lightDir = bx::normalize(bx::Vec3{ -0.35f, -1.0f, -0.2f });
+				const float azimuth = m_lightAngles[0];
+				const float elevation = m_lightAngles[1];
+				const bx::Vec3 lightDir = 
+				{
+					bx::cos(azimuth) * bx::cos(elevation),
+					bx::sin(elevation),
+					bx::sin(azimuth) * bx::cos(elevation)
+				};
 
 				float lightView[16];
 				float lightProj[16];
-				const bx::Vec3 lightEye = bx::mul(lightDir, -20.0f);
+				const bx::Vec3 lightEye = bx::mul(lightDir, -25.0f);
 				const bx::Vec3 lightAt = { 0.0f, 0.0f, 0.0f };
 				bx::mtxLookAt(lightView, lightEye, lightAt);
-				bx::mtxOrtho(lightProj, -15.0f, 15.0f, -15.0f, 15.0f, 1.0f, 50.0f, 0.0f, m_caps->homogeneousDepth);
+				bx::mtxOrtho(lightProj, -25.0f, 25.0f, -25.0f, 25.0f, 1.0f, 60.0f, 0.0f, m_caps->homogeneousDepth);
 
 				bgfx::setViewRect(RENDER_PASS_SHADOW, 0, 0, m_shadowResolution, m_shadowResolution);
 				bgfx::setViewRect(RENDER_PASS_GEOMETRY, 0, 0, uint16_t(m_width), uint16_t(m_height) );
@@ -656,7 +685,9 @@ public:
 				}
 
 				float lightDirIntensity[4] = { lightDir.x, lightDir.y, lightDir.z, m_directionalIntensity };
-				const float lightAmbient[4] = { m_enableIBL ? m_ambientIblIntensity : 0.0f, 0.0f, 0.0f, 0.0f };
+				const bx::Vec3 lightDir2 = bx::normalize(bx::Vec3{ 0.35f, -0.5f, 1.0f });
+				float lightDirIntensity2[4] = { lightDir2.x, lightDir2.y, lightDir2.z, m_fillIntensity };
+				const float lightAmbient[4] = { m_ambientIblIntensity, 0.0f, 0.0f, 0.0f };
 
 				float lightMtx[16];
 				const float sy = m_caps->originBottomLeft ? 0.5f : -0.5f;
@@ -679,12 +710,16 @@ public:
 				bx::mtxInverse(invViewProj, viewProj);
 
 				float shadowParams[4] = { m_shadowBias, m_shadowNormalBias, m_enableShadows ? 1.0f : 0.0f, 0.0f };
+				const bx::Vec3 camPos = cameraGetPosition();
+				float camPosVec[4] = { camPos.x, camPos.y, camPos.z, 0.0f };
 
 				bgfx::setUniform(u_lightDirIntensity, lightDirIntensity);
+				bgfx::setUniform(u_lightDirIntensity2, lightDirIntensity2);
 				bgfx::setUniform(u_lightAmbient, lightAmbient);
 				bgfx::setUniform(u_lightMtx, lightMtx);
 				bgfx::setUniform(u_shadowParams, shadowParams);
 				bgfx::setUniform(u_invViewProj, invViewProj);
+				bgfx::setUniform(u_camPos, camPosVec);
 				bgfx::setTexture(0, s_normal, m_gbufferTex[1]);
 				bgfx::setTexture(1, s_depth, m_gbufferTex[2]);
 				bgfx::setTexture(2, s_shadowMap, m_shadowMapTex);
@@ -783,10 +818,12 @@ public:
 	bgfx::UniformHandle s_depth;
 	bgfx::UniformHandle s_shadowMap;
 	bgfx::UniformHandle u_lightDirIntensity;
+	bgfx::UniformHandle u_lightDirIntensity2;
 	bgfx::UniformHandle u_lightAmbient;
 	bgfx::UniformHandle u_lightMtx;
 	bgfx::UniformHandle u_shadowParams;
 	bgfx::UniformHandle u_invViewProj;
+	bgfx::UniformHandle u_camPos;
 	bgfx::ProgramHandle m_geomProgram;
 	bgfx::ProgramHandle m_lightProgram;
 	bgfx::ProgramHandle m_combineProgram;
@@ -808,7 +845,9 @@ public:
 	float m_shadowBias;
 	float m_shadowNormalBias;
 	float m_directionalIntensity;
+	float m_fillIntensity;
 	float m_ambientIblIntensity;
+	float m_lightAngles[2];
 };
 
 } // namespace
