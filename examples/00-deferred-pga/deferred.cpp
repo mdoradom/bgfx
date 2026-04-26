@@ -76,50 +76,36 @@ struct PosTexCoord0Vertex
 
 bgfx::VertexLayout PosTexCoord0Vertex::ms_layout;
 
-static PosNormalTexcoordVertex s_cubeVertices[24] =
+struct MaterialDesc
 {
-	{-1.0f,  1.0f,  1.0f, encodeNormalRgba8( 0.0f,  0.0f,  1.0f),      0,      0 },
-	{ 1.0f,  1.0f,  1.0f, encodeNormalRgba8( 0.0f,  0.0f,  1.0f), 0x7fff,      0 },
-	{-1.0f, -1.0f,  1.0f, encodeNormalRgba8( 0.0f,  0.0f,  1.0f),      0, 0x7fff },
-	{ 1.0f, -1.0f,  1.0f, encodeNormalRgba8( 0.0f,  0.0f,  1.0f), 0x7fff, 0x7fff },
-	{-1.0f,  1.0f, -1.0f, encodeNormalRgba8( 0.0f,  0.0f, -1.0f),      0,      0 },
-	{ 1.0f,  1.0f, -1.0f, encodeNormalRgba8( 0.0f,  0.0f, -1.0f), 0x7fff,      0 },
-	{-1.0f, -1.0f, -1.0f, encodeNormalRgba8( 0.0f,  0.0f, -1.0f),      0, 0x7fff },
-	{ 1.0f, -1.0f, -1.0f, encodeNormalRgba8( 0.0f,  0.0f, -1.0f), 0x7fff, 0x7fff },
-	{-1.0f,  1.0f,  1.0f, encodeNormalRgba8( 0.0f,  1.0f,  0.0f),      0,      0 },
-	{ 1.0f,  1.0f,  1.0f, encodeNormalRgba8( 0.0f,  1.0f,  0.0f), 0x7fff,      0 },
-	{-1.0f,  1.0f, -1.0f, encodeNormalRgba8( 0.0f,  1.0f,  0.0f),      0, 0x7fff },
-	{ 1.0f,  1.0f, -1.0f, encodeNormalRgba8( 0.0f,  1.0f,  0.0f), 0x7fff, 0x7fff },
-	{-1.0f, -1.0f,  1.0f, encodeNormalRgba8( 0.0f, -1.0f,  0.0f),      0,      0 },
-	{ 1.0f, -1.0f,  1.0f, encodeNormalRgba8( 0.0f, -1.0f,  0.0f), 0x7fff,      0 },
-	{-1.0f, -1.0f, -1.0f, encodeNormalRgba8( 0.0f, -1.0f,  0.0f),      0, 0x7fff },
-	{ 1.0f, -1.0f, -1.0f, encodeNormalRgba8( 0.0f, -1.0f,  0.0f), 0x7fff, 0x7fff },
-	{ 1.0f, -1.0f,  1.0f, encodeNormalRgba8( 1.0f,  0.0f,  0.0f),      0,      0 },
-	{ 1.0f,  1.0f,  1.0f, encodeNormalRgba8( 1.0f,  0.0f,  0.0f), 0x7fff,      0 },
-	{ 1.0f, -1.0f, -1.0f, encodeNormalRgba8( 1.0f,  0.0f,  0.0f),      0, 0x7fff },
-	{ 1.0f,  1.0f, -1.0f, encodeNormalRgba8( 1.0f,  0.0f,  0.0f), 0x7fff, 0x7fff },
-	{-1.0f, -1.0f,  1.0f, encodeNormalRgba8(-1.0f,  0.0f,  0.0f),      0,      0 },
-	{-1.0f,  1.0f,  1.0f, encodeNormalRgba8(-1.0f,  0.0f,  0.0f), 0x7fff,      0 },
-	{-1.0f, -1.0f, -1.0f, encodeNormalRgba8(-1.0f,  0.0f,  0.0f),      0, 0x7fff },
-	{-1.0f,  1.0f, -1.0f, encodeNormalRgba8(-1.0f,  0.0f,  0.0f), 0x7fff, 0x7fff },
+	bx::Vec3 m_albedo;
+	float m_roughness;
+	float m_metalness;
 };
 
-static const uint16_t s_cubeIndices[36] =
+struct SphereDesc
 {
-	 0,  2,  1,
-	 1,  2,  3,
-	 4,  5,  6,
-	 5,  7,  6,
+	bx::Vec3 m_position;
+	float m_radius;
+	uint8_t m_material;
+};
 
-	 8, 10,  9,
-	 9, 10, 11,
-	12, 13, 14,
-	13, 15, 14,
+static const MaterialDesc s_materials[] =
+{
+	{ { 1.00f, 0.30f, 0.20f }, 0.08f, 1.00f }, // polished metal
+	{ { 0.95f, 0.75f, 0.20f }, 0.45f, 1.00f }, // brushed metal
+	{ { 0.20f, 0.45f, 0.90f }, 0.85f, 0.00f }, // rough dielectric
+	{ { 0.80f, 0.80f, 0.82f }, 0.20f, 0.00f }, // smooth dielectric
+	{ { 0.05f, 0.05f, 0.05f }, 0.95f, 0.00f }, // matte dark
+};
 
-	16, 18, 17,
-	17, 18, 19,
-	20, 21, 22,
-	21, 23, 22,
+static const SphereDesc s_spheres[] =
+{
+	{ { -8.0f, 2.0f, -3.5f }, 2.0f, 0 },
+	{ { -3.6f, 1.4f,  2.5f }, 1.4f, 1 },
+	{ {  0.0f, 2.4f, -1.5f }, 2.4f, 2 },
+	{ {  4.2f, 1.8f,  2.8f }, 1.8f, 3 },
+	{ {  8.0f, 1.2f, -5.0f }, 1.2f, 4 },
 };
 
 static PosNormalTexcoordVertex s_planeVertices[4] =
@@ -140,7 +126,7 @@ void screenSpaceQuad(bool _originBottomLeft)
 {
 	if (3 == bgfx::getAvailTransientVertexBuffer(3, PosTexCoord0Vertex::ms_layout) )
 	{
-		bgfx::TransientVertexBuffer vb;
+		bgfx::TransientVertexBuffer vb{};
 		bgfx::allocTransientVertexBuffer(&vb, 3, PosTexCoord0Vertex::ms_layout);
 		PosTexCoord0Vertex* vertex = (PosTexCoord0Vertex*)vb.data;
 
@@ -185,33 +171,33 @@ class Deferred : public entry::AppI
 public:
 	Deferred(const char* _name, const char* _description, const char* _url)
 		: entry::AppI(_name, _description, _url)
-		, m_width(0)
-		, m_height(0)
-		, m_debug(0)
-		, m_reset(0)
-		, m_supportedBackend(false)
-		, m_deferredSupported(false)
-		, m_enableShadows(true)
-		, m_enableIBL(true)
-		, m_debugView(DEBUG_VIEW_FINAL)
-		, m_caps(NULL)
-		, m_oldWidth(0)
-		, m_oldHeight(0)
-		, m_oldReset(0)
-		, m_shadowResolution(2048)
-		, m_shadowBias(0.0015f)
-		, m_shadowNormalBias(0.02f)
-		, m_directionalIntensity(4.0f)
-		, m_fillIntensity(1.0f)
-		, m_ambientIblIntensity(0.1f)
-		, m_iblRoughness(0.35f)
-		, m_iblReflectivity(0.5f)
-		, m_skyboxIntensity(1.0f)
+		  	, m_width(0)
+		  	, m_height(0)
+		  	, m_debug(0)
+		  	, m_reset(0)
+		  	, m_supportedBackend(false)
+		  	, m_deferredSupported(false)
+		  	, m_enableShadows(true)
+		  	, m_enableIBL(true)
+		  	, m_debugView(DEBUG_VIEW_FINAL)
+		  	, m_caps(NULL)
+		  	, u_lightDirIntensity2()
+			, m_oldWidth(0)
+		  	, m_oldHeight(0)
+		  	, m_oldReset(0)
+		  	, m_shadowResolution(2048)
+		  	, m_shadowBias(0.0015f)
+		  	, m_shadowNormalBias(0.02f)
+		  	, m_directionalIntensity(4.0f)
+		  	, m_fillIntensity(1.0f)
+		  	, m_ambientIblIntensity(0.1f)
+		  	, m_iblRoughness(0.35f)
+		  	, m_iblReflectivity(0.5f)
+		  	, m_skyboxIntensity(1.0f)
 	{
 		m_lightAngles[0] = -0.35f;
 		m_lightAngles[1] = -1.0f;
-		m_vbh.idx = bgfx::kInvalidHandle;
-		m_ibh.idx = bgfx::kInvalidHandle;
+		m_sphereMesh = nullptr;
 		m_planeVbh.idx = bgfx::kInvalidHandle;
 		m_planeIbh.idx = bgfx::kInvalidHandle;
 		s_texColor.idx = bgfx::kInvalidHandle;
@@ -225,6 +211,8 @@ public:
 		u_lightAmbient.idx = bgfx::kInvalidHandle;
 		u_lightMtx.idx = bgfx::kInvalidHandle;
 		u_shadowParams.idx = bgfx::kInvalidHandle;
+		u_baseColorRoughness.idx = bgfx::kInvalidHandle;
+		u_materialParams.idx = bgfx::kInvalidHandle;
 		u_invViewProj.idx = bgfx::kInvalidHandle;
 		u_camPos.idx = bgfx::kInvalidHandle;
 		u_iblParams.idx = bgfx::kInvalidHandle;
@@ -234,7 +222,6 @@ public:
 		m_combineProgram.idx = bgfx::kInvalidHandle;
 		m_debugProgram.idx = bgfx::kInvalidHandle;
 		m_shadowProgram.idx = bgfx::kInvalidHandle;
-		m_textureColor.idx = bgfx::kInvalidHandle;
 		m_iblCubeTex.idx = bgfx::kInvalidHandle;
 		m_gbufferTex[0].idx = bgfx::kInvalidHandle;
 		m_gbufferTex[1].idx = bgfx::kInvalidHandle;
@@ -367,8 +354,7 @@ public:
 		PosNormalTexcoordVertex::init();
 		PosTexCoord0Vertex::init();
 
-		m_vbh = bgfx::createVertexBuffer(bgfx::makeRef(s_cubeVertices, sizeof(s_cubeVertices) ), PosNormalTexcoordVertex::ms_layout);
-		m_ibh = bgfx::createIndexBuffer(bgfx::makeRef(s_cubeIndices, sizeof(s_cubeIndices) ) );
+		m_sphereMesh = meshLoad("meshes/orb.bin");
 
 		m_planeVbh = bgfx::createVertexBuffer(bgfx::makeRef(s_planeVertices, sizeof(s_planeVertices) ), PosNormalTexcoordVertex::ms_layout);
 		m_planeIbh = bgfx::createIndexBuffer(bgfx::makeRef(s_planeIndices, sizeof(s_planeIndices) ) );
@@ -385,6 +371,8 @@ public:
 		u_lightAmbient = bgfx::createUniform("u_lightAmbient", bgfx::UniformType::Vec4);
 		u_lightMtx = bgfx::createUniform("u_lightMtx", bgfx::UniformType::Mat4);
 		u_shadowParams = bgfx::createUniform("u_shadowParams", bgfx::UniformType::Vec4);
+		u_baseColorRoughness = bgfx::createUniform("u_baseColorRoughness", bgfx::UniformType::Vec4);
+		u_materialParams = bgfx::createUniform("u_materialParams", bgfx::UniformType::Vec4);
 		u_invViewProj = bgfx::createUniform("u_invViewProjGeom", bgfx::UniformType::Mat4);
 		u_camPos = bgfx::createUniform("u_camPos", bgfx::UniformType::Vec4);
 		u_iblParams = bgfx::createUniform("u_iblParams", bgfx::UniformType::Vec4);
@@ -396,7 +384,6 @@ public:
 		m_debugProgram = loadProgram("vs_deferred_debug", "fs_deferred_debug");
 		m_shadowProgram = loadProgram("vs_deferred_shadow", "fs_deferred_shadow");
 
-		m_textureColor = loadTexture("textures/fieldstone-rgba.dds");
 		m_iblCubeTex = loadTexture("textures/bolonga_lod.dds", BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_SAMPLER_W_CLAMP);
 
 		if (m_supportedBackend && m_deferredSupported)
@@ -415,9 +402,10 @@ public:
 	{
 		destroyFrameBuffers();
 
-		if (bgfx::isValid(m_textureColor) )
+		if (NULL != m_sphereMesh)
 		{
-			bgfx::destroy(m_textureColor);
+			meshUnload(m_sphereMesh);
+			m_sphereMesh = NULL;
 		}
 
 		if (bgfx::isValid(m_iblCubeTex) )
@@ -475,6 +463,16 @@ public:
 			bgfx::destroy(u_shadowParams);
 		}
 
+		if (bgfx::isValid(u_materialParams) )
+		{
+			bgfx::destroy(u_materialParams);
+		}
+
+		if (bgfx::isValid(u_baseColorRoughness) )
+		{
+			bgfx::destroy(u_baseColorRoughness);
+		}
+
 		if (bgfx::isValid(u_lightMtx) )
 		{
 			bgfx::destroy(u_lightMtx);
@@ -528,16 +526,6 @@ public:
 		if (bgfx::isValid(s_texColor) )
 		{
 			bgfx::destroy(s_texColor);
-		}
-
-		if (bgfx::isValid(m_ibh) )
-		{
-			bgfx::destroy(m_ibh);
-		}
-
-		if (bgfx::isValid(m_vbh) )
-		{
-			bgfx::destroy(m_vbh);
 		}
 
 		if (bgfx::isValid(m_planeIbh) )
@@ -640,9 +628,7 @@ public:
 				&& bgfx::isValid(m_debugProgram)
 				&& bgfx::isValid(m_shadowProgram)
 				&& bgfx::isValid(m_iblCubeTex)
-				&& bgfx::isValid(m_vbh)
-				&& bgfx::isValid(m_ibh)
-				&& bgfx::isValid(m_textureColor);
+				&& NULL != m_sphereMesh;
 
 			if (deferredReady)
 			{
@@ -693,9 +679,13 @@ public:
 
 				bgfx::setViewClear(RENDER_PASS_SHADOW, BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
 
-				// Render Plane
+				// Render plane.
 				float identity[16];
 				bx::mtxIdentity(identity);
+				const float planeColorRoughness[4] = { 0.45f, 0.45f, 0.45f, 0.9f };
+				const float planeMaterialParams[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+				bgfx::setUniform(u_baseColorRoughness, planeColorRoughness);
+				bgfx::setUniform(u_materialParams, planeMaterialParams);
 				bgfx::setTransform(identity);
 				bgfx::setVertexBuffer(0, m_planeVbh);
 				bgfx::setIndexBuffer(m_planeIbh);
@@ -703,38 +693,36 @@ public:
 				bgfx::submit(RENDER_PASS_SHADOW, m_shadowProgram);
 
 				bgfx::setTransform(identity);
-				bgfx::setTexture(0, s_texColor, m_textureColor);
 				bgfx::setVertexBuffer(0, m_planeVbh);
 				bgfx::setIndexBuffer(m_planeIbh);
 				bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA);
 				bgfx::submit(RENDER_PASS_GEOMETRY, m_geomProgram);
 
-				const float time = float(double(bx::getHPCounter()) / double(bx::getHPFrequency()));
-				const uint32_t dim = 5;
-				const float offset = float(dim - 1) * 3.0f * 0.5f;
-				for (uint32_t yy = 0; yy < dim; ++yy)
+				for (uint32_t ii = 0; ii < BX_COUNTOF(s_spheres); ++ii)
 				{
-					for (uint32_t xx = 0; xx < dim; ++xx)
-					{
-						float mtx[16];
-						bx::mtxRotateXY(mtx, time * 0.37f + xx * 0.21f, time * 0.23f + yy * 0.37f);
-						mtx[12] = -offset + float(xx) * 3.0f;
-						mtx[13] = 2.0f + bx::sin(time + float(xx+yy)*0.5f) * 1.0f;
-						mtx[14] = -offset + float(yy) * 3.0f;
+					const SphereDesc& sphere = s_spheres[ii];
+					const uint32_t materialIdx = bx::min<uint32_t>(sphere.m_material, BX_COUNTOF(s_materials) - 1);
+					const MaterialDesc& material = s_materials[materialIdx];
 
-						bgfx::setTransform(mtx);
-						bgfx::setVertexBuffer(0, m_vbh);
-						bgfx::setIndexBuffer(m_ibh);
-						bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
-						bgfx::submit(RENDER_PASS_SHADOW, m_shadowProgram);
+					float mtx[16];
+					bx::mtxScale(mtx, sphere.m_radius, sphere.m_radius, sphere.m_radius);
+					mtx[12] = sphere.m_position.x;
+					mtx[13] = sphere.m_position.y;
+					mtx[14] = sphere.m_position.z;
 
-						bgfx::setTransform(mtx);
-						bgfx::setTexture(0, s_texColor, m_textureColor);
-						bgfx::setVertexBuffer(0, m_vbh);
-						bgfx::setIndexBuffer(m_ibh);
-						bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA);
-						bgfx::submit(RENDER_PASS_GEOMETRY, m_geomProgram);
-					}
+					meshSubmit(m_sphereMesh, RENDER_PASS_SHADOW, m_shadowProgram, mtx, BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
+
+					float baseColorRoughness[4] = { material.m_albedo.x, material.m_albedo.y, material.m_albedo.z, material.m_roughness };
+					float materialParams[4] = { material.m_metalness, 0.0f, 0.0f, 0.0f };
+					bgfx::setUniform(u_baseColorRoughness, baseColorRoughness);
+					bgfx::setUniform(u_materialParams, materialParams);
+					meshSubmit(
+						  m_sphereMesh
+						, RENDER_PASS_GEOMETRY
+						, m_geomProgram
+						, mtx
+						, BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA
+						);
 				}
 
 				float lightDirIntensity[4] = { lightDir.x, lightDir.y, lightDir.z, m_directionalIntensity };
@@ -781,11 +769,12 @@ public:
 				bgfx::setUniform(u_invViewProj, invViewProj);
 				bgfx::setUniform(u_camPos, camPosVec);
 				bgfx::setUniform(u_iblParams, iblParams);
-				bgfx::setTexture(0, s_normal, m_gbufferTex[1]);
-				bgfx::setTexture(1, s_depth, m_gbufferTex[2]);
-				bgfx::setTexture(2, s_shadowMap, m_shadowMapTex,
+				bgfx::setTexture(0, s_albedo, m_gbufferTex[0]);
+				bgfx::setTexture(1, s_normal, m_gbufferTex[1]);
+				bgfx::setTexture(2, s_depth, m_gbufferTex[2]);
+				bgfx::setTexture(3, s_shadowMap, m_shadowMapTex,
 					BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_SAMPLER_COMPARE_LESS);
-				bgfx::setTexture(3, s_texCube, m_iblCubeTex);
+				bgfx::setTexture(4, s_texCube, m_iblCubeTex);
 				screenSpaceQuad(m_caps->originBottomLeft);
 				bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA);
 				bgfx::submit(RENDER_PASS_LIGHT, m_lightProgram);
@@ -795,10 +784,9 @@ public:
 					bgfx::setUniform(u_invViewProj, invViewProj);
 					bgfx::setUniform(u_camPos, camPosVec);
 					bgfx::setUniform(u_iblParams, iblParams);
-					bgfx::setTexture(0, s_albedo, m_gbufferTex[0]);
-					bgfx::setTexture(1, s_light, m_lightBufferTex);
-					bgfx::setTexture(2, s_depth, m_gbufferTex[2]);
-					bgfx::setTexture(3, s_texCube, m_iblCubeTex);
+					bgfx::setTexture(0, s_light, m_lightBufferTex);
+					bgfx::setTexture(1, s_depth, m_gbufferTex[2]);
+					bgfx::setTexture(2, s_texCube, m_iblCubeTex);
 					screenSpaceQuad(m_caps->originBottomLeft);
 					bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA);
 					bgfx::submit(RENDER_PASS_COMBINE, m_combineProgram);
@@ -903,8 +891,7 @@ public:
 	int32_t m_debugView;
 	const bgfx::Caps* m_caps;
 
-	bgfx::VertexBufferHandle m_vbh;
-	bgfx::IndexBufferHandle m_ibh;
+	Mesh* m_sphereMesh;
 	bgfx::VertexBufferHandle m_planeVbh;
 	bgfx::IndexBufferHandle m_planeIbh;
 	bgfx::UniformHandle s_texColor;
@@ -919,6 +906,8 @@ public:
 	bgfx::UniformHandle u_lightAmbient;
 	bgfx::UniformHandle u_lightMtx;
 	bgfx::UniformHandle u_shadowParams;
+	bgfx::UniformHandle u_baseColorRoughness;
+	bgfx::UniformHandle u_materialParams;
 	bgfx::UniformHandle u_invViewProj;
 	bgfx::UniformHandle u_camPos;
 	bgfx::UniformHandle u_iblParams;
@@ -928,7 +917,6 @@ public:
 	bgfx::ProgramHandle m_combineProgram;
 	bgfx::ProgramHandle m_debugProgram;
 	bgfx::ProgramHandle m_shadowProgram;
-	bgfx::TextureHandle m_textureColor;
 	bgfx::TextureHandle m_iblCubeTex;
 	bgfx::TextureHandle m_gbufferTex[3];
 	bgfx::TextureHandle m_lightBufferTex;

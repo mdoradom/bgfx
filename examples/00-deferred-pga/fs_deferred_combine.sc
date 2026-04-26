@@ -2,10 +2,9 @@ $input v_texcoord0
 
 #include "../common/common.sh"
 
-SAMPLER2D(s_albedo, 0);
-SAMPLER2D(s_light, 1);
-SAMPLER2D(s_depth, 2);
-SAMPLERCUBE(s_texCube, 3);
+SAMPLER2D(s_light, 0);
+SAMPLER2D(s_depth, 1);
+SAMPLERCUBE(s_texCube, 2);
 
 uniform mat4 u_invViewProjGeom;
 uniform vec4 u_camPos;
@@ -13,9 +12,7 @@ uniform vec4 u_iblParams;
 
 void main()
 {
-	vec4 albedo = toLinear(texture2D(s_albedo, v_texcoord0) );
-	vec4 light = toLinear(texture2D(s_light, v_texcoord0) );
-	vec3 litColor = (albedo * light).xyz;
+	vec3 litColor = toLinear(texture2D(s_light, v_texcoord0) ).xyz;
 
 	float deviceDepth = texture2D(s_depth, v_texcoord0).x;
 	float hasGeometry = deviceDepth < 0.9999 ? 1.0 : 0.0;
