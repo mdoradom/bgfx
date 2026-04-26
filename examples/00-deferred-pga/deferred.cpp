@@ -19,6 +19,17 @@ enum RenderPass : bgfx::ViewId
 	RENDER_PASS_SHADOW = 4,
 };
 
+enum DebugView
+{
+	DEBUG_VIEW_FINAL = 0,
+	DEBUG_VIEW_ALBEDO,
+	DEBUG_VIEW_NORMAL,
+	DEBUG_VIEW_DEPTH,
+	DEBUG_VIEW_LIGHT,
+	DEBUG_VIEW_SHADOW_MAP,
+	DEBUG_VIEW_SKYBOX,
+};
+
 struct PosNormalTexcoordVertex
 {
 	float m_x;
@@ -182,8 +193,7 @@ public:
 		, m_deferredSupported(false)
 		, m_enableShadows(true)
 		, m_enableIBL(true)
-		, m_showGBuffer(false)
-		, m_showShadowMap(false)
+		, m_debugView(DEBUG_VIEW_FINAL)
 		, m_caps(NULL)
 		, m_oldWidth(0)
 		, m_oldHeight(0)
@@ -194,6 +204,9 @@ public:
 		, m_directionalIntensity(4.0f)
 		, m_fillIntensity(1.0f)
 		, m_ambientIblIntensity(0.1f)
+		, m_iblRoughness(0.35f)
+		, m_iblReflectivity(0.5f)
+		, m_skyboxIntensity(1.0f)
 	{
 		m_lightAngles[0] = -0.35f;
 		m_lightAngles[1] = -1.0f;
@@ -207,18 +220,22 @@ public:
 		s_normal.idx = bgfx::kInvalidHandle;
 		s_depth.idx = bgfx::kInvalidHandle;
 		s_shadowMap.idx = bgfx::kInvalidHandle;
+		s_texCube.idx = bgfx::kInvalidHandle;
 		u_lightDirIntensity.idx = bgfx::kInvalidHandle;
 		u_lightAmbient.idx = bgfx::kInvalidHandle;
 		u_lightMtx.idx = bgfx::kInvalidHandle;
 		u_shadowParams.idx = bgfx::kInvalidHandle;
 		u_invViewProj.idx = bgfx::kInvalidHandle;
 		u_camPos.idx = bgfx::kInvalidHandle;
+		u_iblParams.idx = bgfx::kInvalidHandle;
+		u_debugParams.idx = bgfx::kInvalidHandle;
 		m_geomProgram.idx = bgfx::kInvalidHandle;
 		m_lightProgram.idx = bgfx::kInvalidHandle;
 		m_combineProgram.idx = bgfx::kInvalidHandle;
 		m_debugProgram.idx = bgfx::kInvalidHandle;
 		m_shadowProgram.idx = bgfx::kInvalidHandle;
 		m_textureColor.idx = bgfx::kInvalidHandle;
+		m_iblCubeTex.idx = bgfx::kInvalidHandle;
 		m_gbufferTex[0].idx = bgfx::kInvalidHandle;
 		m_gbufferTex[1].idx = bgfx::kInvalidHandle;
 		m_gbufferTex[2].idx = bgfx::kInvalidHandle;
@@ -289,7 +306,6 @@ public:
 		const uint64_t shadowSamplerFlags = 0
 			| BGFX_SAMPLER_U_CLAMP
 			| BGFX_SAMPLER_V_CLAMP
-			| BGFX_SAMPLER_COMPARE_LESS
 			;
 		m_shadowMapTex = bgfx::createTexture2D(m_shadowResolution, m_shadowResolution, false, 1, bgfx::TextureFormat::D16, BGFX_TEXTURE_RT | shadowSamplerFlags);
 		m_shadowMapFB = bgfx::createFrameBuffer(1, &m_shadowMapTex, true);
@@ -363,6 +379,7 @@ public:
 		s_normal = bgfx::createUniform("s_normal", bgfx::UniformType::Sampler);
 		s_depth = bgfx::createUniform("s_depth", bgfx::UniformType::Sampler);
 		s_shadowMap = bgfx::createUniform("s_shadowMap", bgfx::UniformType::Sampler);
+		s_texCube = bgfx::createUniform("s_texCube", bgfx::UniformType::Sampler);
 		u_lightDirIntensity = bgfx::createUniform("u_lightDirIntensity", bgfx::UniformType::Vec4);
 		u_lightDirIntensity2 = bgfx::createUniform("u_lightDirIntensity2", bgfx::UniformType::Vec4);
 		u_lightAmbient = bgfx::createUniform("u_lightAmbient", bgfx::UniformType::Vec4);
@@ -370,6 +387,8 @@ public:
 		u_shadowParams = bgfx::createUniform("u_shadowParams", bgfx::UniformType::Vec4);
 		u_invViewProj = bgfx::createUniform("u_invViewProjGeom", bgfx::UniformType::Mat4);
 		u_camPos = bgfx::createUniform("u_camPos", bgfx::UniformType::Vec4);
+		u_iblParams = bgfx::createUniform("u_iblParams", bgfx::UniformType::Vec4);
+		u_debugParams = bgfx::createUniform("u_debugParams", bgfx::UniformType::Vec4);
 
 		m_geomProgram = loadProgram("vs_deferred_geom", "fs_deferred_geom");
 		m_lightProgram = loadProgram("vs_deferred_light", "fs_deferred_light");
@@ -378,6 +397,7 @@ public:
 		m_shadowProgram = loadProgram("vs_deferred_shadow", "fs_deferred_shadow");
 
 		m_textureColor = loadTexture("textures/fieldstone-rgba.dds");
+		m_iblCubeTex = loadTexture("textures/bolonga_lod.dds", BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_SAMPLER_W_CLAMP);
 
 		if (m_supportedBackend && m_deferredSupported)
 		{
@@ -398,6 +418,11 @@ public:
 		if (bgfx::isValid(m_textureColor) )
 		{
 			bgfx::destroy(m_textureColor);
+		}
+
+		if (bgfx::isValid(m_iblCubeTex) )
+		{
+			bgfx::destroy(m_iblCubeTex);
 		}
 
 		if (bgfx::isValid(m_shadowProgram) )
@@ -435,6 +460,16 @@ public:
 			bgfx::destroy(u_camPos);
 		}
 
+		if (bgfx::isValid(u_debugParams) )
+		{
+			bgfx::destroy(u_debugParams);
+		}
+
+		if (bgfx::isValid(u_iblParams) )
+		{
+			bgfx::destroy(u_iblParams);
+		}
+
 		if (bgfx::isValid(u_shadowParams) )
 		{
 			bgfx::destroy(u_shadowParams);
@@ -448,6 +483,11 @@ public:
 		if (bgfx::isValid(s_shadowMap) )
 		{
 			bgfx::destroy(s_shadowMap);
+		}
+
+		if (bgfx::isValid(s_texCube) )
+		{
+			bgfx::destroy(s_texCube);
 		}
 
 		if (bgfx::isValid(s_light) )
@@ -554,8 +594,17 @@ public:
 			ImGui::Text("Backend support: %s", m_supportedBackend ? "OpenGL/Vulkan path enabled" : "Fallback mode");
 			ImGui::Checkbox("Enable Shadows", &m_enableShadows);
 			ImGui::Checkbox("Enable IBL", &m_enableIBL);
-			ImGui::Checkbox("Show GBuffer", &m_showGBuffer);
-			ImGui::Checkbox("Show Shadow Map", &m_showShadowMap);
+			const char* debugViews[] =
+			{
+				"Final",
+				"Albedo",
+				"Normal",
+				"Depth",
+				"Light",
+				"Shadow Map",
+				"Skybox",
+			};
+			ImGui::Combo("Debug View", &m_debugView, debugViews, BX_COUNTOF(debugViews));
 			const char* shadowResItems[] = { "1024", "2048", "4096" };
 			int32_t shadowResIndex = m_shadowResolution == 1024 ? 0 : (m_shadowResolution == 4096 ? 2 : 1);
 			if (ImGui::Combo("Shadow Resolution", &shadowResIndex, shadowResItems, BX_COUNTOF(shadowResItems) ) )
@@ -573,6 +622,9 @@ public:
 			ImGui::SliderFloat("Sun Intensity", &m_directionalIntensity, 0.0f, 10.0f, "%.2f");
 			ImGui::SliderFloat("Fill Intensity", &m_fillIntensity, 0.0f, 5.0f, "%.2f");
 			ImGui::SliderFloat("Ambient Intensity", &m_ambientIblIntensity, 0.0f, 2.0f, "%.2f");
+			ImGui::SliderFloat("IBL Roughness", &m_iblRoughness, 0.0f, 1.0f, "%.2f");
+			ImGui::SliderFloat("IBL Reflectivity", &m_iblReflectivity, 0.0f, 1.0f, "%.2f");
+			ImGui::SliderFloat("Skybox Intensity", &m_skyboxIntensity, 0.0f, 2.0f, "%.2f");
 			ImGui::End();
 
 			imguiEndFrame();
@@ -587,6 +639,7 @@ public:
 				&& bgfx::isValid(m_combineProgram)
 				&& bgfx::isValid(m_debugProgram)
 				&& bgfx::isValid(m_shadowProgram)
+				&& bgfx::isValid(m_iblCubeTex)
 				&& bgfx::isValid(m_vbh)
 				&& bgfx::isValid(m_ibh)
 				&& bgfx::isValid(m_textureColor);
@@ -710,6 +763,13 @@ public:
 				bx::mtxInverse(invViewProj, viewProj);
 
 				float shadowParams[4] = { m_shadowBias, m_shadowNormalBias, m_enableShadows ? 1.0f : 0.0f, 0.0f };
+				float iblParams[4] =
+				{
+					m_iblRoughness,
+					m_iblReflectivity,
+					m_enableIBL ? 1.0f : 0.0f,
+					m_skyboxIntensity,
+				};
 				const bx::Vec3 camPos = cameraGetPosition();
 				float camPosVec[4] = { camPos.x, camPos.y, camPos.z, 0.0f };
 
@@ -720,34 +780,71 @@ public:
 				bgfx::setUniform(u_shadowParams, shadowParams);
 				bgfx::setUniform(u_invViewProj, invViewProj);
 				bgfx::setUniform(u_camPos, camPosVec);
+				bgfx::setUniform(u_iblParams, iblParams);
 				bgfx::setTexture(0, s_normal, m_gbufferTex[1]);
 				bgfx::setTexture(1, s_depth, m_gbufferTex[2]);
-				bgfx::setTexture(2, s_shadowMap, m_shadowMapTex);
+				bgfx::setTexture(2, s_shadowMap, m_shadowMapTex,
+					BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_SAMPLER_COMPARE_LESS);
+				bgfx::setTexture(3, s_texCube, m_iblCubeTex);
 				screenSpaceQuad(m_caps->originBottomLeft);
 				bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA);
 				bgfx::submit(RENDER_PASS_LIGHT, m_lightProgram);
 
-				if (m_showShadowMap)
+				if (m_debugView == DEBUG_VIEW_FINAL)
 				{
-					bgfx::setTexture(0, s_texColor, m_shadowMapTex);
-					screenSpaceQuad(m_caps->originBottomLeft);
-					bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA);
-					bgfx::submit(RENDER_PASS_DEBUG, m_debugProgram);
-				}
-				else if (m_showGBuffer)
-				{
-					bgfx::setTexture(0, s_texColor, m_gbufferTex[0]);
-					screenSpaceQuad(m_caps->originBottomLeft);
-					bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA);
-					bgfx::submit(RENDER_PASS_DEBUG, m_debugProgram);
-				}
-				else
-				{
+					bgfx::setUniform(u_invViewProj, invViewProj);
+					bgfx::setUniform(u_camPos, camPosVec);
+					bgfx::setUniform(u_iblParams, iblParams);
 					bgfx::setTexture(0, s_albedo, m_gbufferTex[0]);
 					bgfx::setTexture(1, s_light, m_lightBufferTex);
+					bgfx::setTexture(2, s_depth, m_gbufferTex[2]);
+					bgfx::setTexture(3, s_texCube, m_iblCubeTex);
 					screenSpaceQuad(m_caps->originBottomLeft);
 					bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA);
 					bgfx::submit(RENDER_PASS_COMBINE, m_combineProgram);
+				}
+				else
+				{
+					bgfx::TextureHandle debugTex = m_gbufferTex[0];
+					float debugParams[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+					switch (m_debugView)
+					{
+					case DEBUG_VIEW_ALBEDO:
+						debugTex = m_gbufferTex[0];
+						break;
+					case DEBUG_VIEW_NORMAL:
+						debugTex = m_gbufferTex[1];
+						debugParams[0] = 1.0f;
+						break;
+					case DEBUG_VIEW_DEPTH:
+						debugTex = m_gbufferTex[2];
+						debugParams[0] = 2.0f;
+						break;
+					case DEBUG_VIEW_LIGHT:
+						debugTex = m_lightBufferTex;
+						debugParams[0] = 3.0f;
+						break;
+					case DEBUG_VIEW_SHADOW_MAP:
+						debugTex = m_shadowMapTex;
+						debugParams[0] = 4.0f;
+						break;
+					case DEBUG_VIEW_SKYBOX:
+						debugTex = m_gbufferTex[2];
+						debugParams[0] = 5.0f;
+						break;
+					default:
+						break;
+					}
+
+					bgfx::setUniform(u_debugParams, debugParams);
+					bgfx::setUniform(u_invViewProj, invViewProj);
+					bgfx::setUniform(u_camPos, camPosVec);
+					bgfx::setUniform(u_iblParams, iblParams);
+					bgfx::setTexture(0, s_texColor, debugTex);
+					bgfx::setTexture(1, s_texCube, m_iblCubeTex);
+					screenSpaceQuad(m_caps->originBottomLeft);
+					bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA);
+					bgfx::submit(RENDER_PASS_DEBUG, m_debugProgram);
 				}
 			}
 			else
@@ -803,8 +900,7 @@ public:
 	bool m_deferredSupported;
 	bool m_enableShadows;
 	bool m_enableIBL;
-	bool m_showGBuffer;
-	bool m_showShadowMap;
+	int32_t m_debugView;
 	const bgfx::Caps* m_caps;
 
 	bgfx::VertexBufferHandle m_vbh;
@@ -817,6 +913,7 @@ public:
 	bgfx::UniformHandle s_normal;
 	bgfx::UniformHandle s_depth;
 	bgfx::UniformHandle s_shadowMap;
+	bgfx::UniformHandle s_texCube;
 	bgfx::UniformHandle u_lightDirIntensity;
 	bgfx::UniformHandle u_lightDirIntensity2;
 	bgfx::UniformHandle u_lightAmbient;
@@ -824,12 +921,15 @@ public:
 	bgfx::UniformHandle u_shadowParams;
 	bgfx::UniformHandle u_invViewProj;
 	bgfx::UniformHandle u_camPos;
+	bgfx::UniformHandle u_iblParams;
+	bgfx::UniformHandle u_debugParams;
 	bgfx::ProgramHandle m_geomProgram;
 	bgfx::ProgramHandle m_lightProgram;
 	bgfx::ProgramHandle m_combineProgram;
 	bgfx::ProgramHandle m_debugProgram;
 	bgfx::ProgramHandle m_shadowProgram;
 	bgfx::TextureHandle m_textureColor;
+	bgfx::TextureHandle m_iblCubeTex;
 	bgfx::TextureHandle m_gbufferTex[3];
 	bgfx::TextureHandle m_lightBufferTex;
 	bgfx::TextureHandle m_shadowMapTex;
@@ -847,6 +947,9 @@ public:
 	float m_directionalIntensity;
 	float m_fillIntensity;
 	float m_ambientIblIntensity;
+	float m_iblRoughness;
+	float m_iblReflectivity;
+	float m_skyboxIntensity;
 	float m_lightAngles[2];
 };
 

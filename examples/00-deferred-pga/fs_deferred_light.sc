@@ -5,6 +5,7 @@ $input v_texcoord0
 SAMPLER2D(s_normal, 0);
 SAMPLER2D(s_depth,  1);
 SAMPLER2DSHADOW(s_shadowMap, 2);
+SAMPLERCUBE(s_texCube, 3);
 
 uniform vec4 u_lightDirIntensity;
 uniform vec4 u_lightDirIntensity2;
@@ -13,6 +14,7 @@ uniform mat4 u_lightMtx;
 uniform vec4 u_shadowParams;
 uniform mat4 u_invViewProjGeom;
 uniform vec4 u_camPos;
+uniform vec4 u_iblParams;
 
 void main()
 {
@@ -55,6 +57,15 @@ void main()
 
 	vec3 ambient = vec3_splat(u_lightAmbient.x);
 
-	vec3 lightColor = (ambient + color1 + color2) * depthMask;
+	vec3 iblSpecular = vec3_splat(0.0);
+	if (u_iblParams.z > 0.5)
+	{
+		float mip = 1.0 + 5.0 * clamp(u_iblParams.x, 0.0, 1.0);
+		vec3 refl = reflect(-viewDir, normal);
+		refl = fixCubeLookup(refl, mip, 256.0);
+		iblSpecular = toLinear(textureCubeLod(s_texCube, refl, mip).xyz) * clamp(u_iblParams.y, 0.0, 1.0);
+	}
+
+	vec3 lightColor = (ambient + color1 + color2 + iblSpecular) * depthMask;
 	gl_FragColor = vec4(toGamma(lightColor), 1.0);
 }
