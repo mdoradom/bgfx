@@ -205,8 +205,14 @@ public:
 			showExampleDialog(this);
 			ImGui::SetNextWindowPos(ImVec2(20.0f, 100.0f), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowSize(ImVec2(360.0f, 120.0f), ImGuiCond_FirstUseEver);
-			ImGui::Begin("Black n White filter", nullptr, 0);
+			ImGui::Begin("Exercise parameters", nullptr, 0);
+			ImGui::Text("Black & White Filter");
 			ImGui::SliderFloat("Coverage", &m_filterCoverage, 0.0f, 1.0f);
+			ImGui::Separator();
+			ImGui::Text("Directional Light");
+			ImGui::SliderFloat("Light Azimuth", &m_lightAngles[0], -bx::kPi, bx::kPi);
+			ImGui::SliderFloat("Light Elevation", &m_lightAngles[1], -bx::kPi, 0.0f);
+			ImGui::SliderFloat("Sun Intensity", &m_directionalIntensity, 0.0f, 10.0f, "%.2f");
 			ImGui::End();
 
 			imguiEndFrame();
@@ -282,6 +288,9 @@ public:
 	bgfx::UniformHandle u_time;
 	bgfx::UniformHandle u_filter;
 	bgfx::UniformHandle s_sceneColor;
+
+	float m_lightAngles[2];
+	float m_directionalIntensity;
 };
 
 } // namespace
