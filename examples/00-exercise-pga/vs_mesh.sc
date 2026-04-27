@@ -9,7 +9,6 @@ $output v_pos, v_view, v_normal, v_color0
 #include "../common/common.sh"
 
 uniform vec4 u_time;
-uniform vec4 u_filter;
 
 void main()
 {
