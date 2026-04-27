@@ -133,6 +133,8 @@ public:
 				, 0
 				);
 
+
+
 		u_time = bgfx::createUniform("u_time", bgfx::UniformFreq::Frame, bgfx::UniformType::Vec4);
 		u_filter = bgfx::createUniform("u_filter", bgfx::UniformFreq::Frame, bgfx::UniformType::Vec4);
 		s_sceneColor = bgfx::createUniform("s_sceneColor", bgfx::UniformType::Sampler);
