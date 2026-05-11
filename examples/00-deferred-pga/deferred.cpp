@@ -6,6 +6,12 @@
 #include "camera.h"
 #include "imgui/imgui.h"
 
+// TODO list:
+// - pbr
+// - ibl + compute
+// - shadow mapping
+// - ssao + compute
+
 namespace
 {
 
