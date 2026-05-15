@@ -47,7 +47,18 @@ void main()
 	{
         vec3 shadowCoord = shadowProj.xyz / shadowProj.w;
         shadowCoord.z -= u_shadowParams.x;
-        visibility = shadow2D(s_shadowMap, shadowCoord);
+        vec2 texelSize = vec2(1.0 / 2048.0, 1.0 / 2048.0);
+
+        visibility = 0.0;
+        for (int y = -1; y <= 1; ++y)
+        {
+            for (int x = -1; x <= 1; ++x)
+            {
+                vec2 offset = vec2(float(x), float(y)) * texelSize;
+                visibility += shadow2D(s_shadowMap, vec3(shadowCoord.xy + offset, shadowCoord.z));
+            }
+        }
+        visibility /= 9.0;
 	}
 	
 	vec3 f0 = mix(vec3_splat(0.04), albedo, metalness);

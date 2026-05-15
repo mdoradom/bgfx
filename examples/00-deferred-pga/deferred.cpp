@@ -590,45 +590,53 @@ public:
 				);
 
 			showExampleDialog(this);
-			ImGui::SetNextWindowPos(ImVec2(10.0f, 100.0f), ImGuiCond_FirstUseEver);
-			ImGui::SetNextWindowSize(ImVec2(360.0f, 290.0f), ImGuiCond_FirstUseEver);
-			ImGui::Begin("Deferred Debug", NULL, 0);
-			ImGui::Text("Backend support: %s", m_supportedBackend ? "OpenGL/Vulkan path enabled" : "Fallback mode");
-			ImGui::Checkbox("Enable Shadows", &m_enableShadows);
-			ImGui::Checkbox("Enable IBL", &m_enableIBL);
-			const char* debugViews[] =
+			ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
+			ImGui::SetNextWindowSize(ImVec2(350.0f, 0.0f), ImGuiCond_FirstUseEver);
+			ImGui::Begin("Deferred Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+
+			if (ImGui::CollapsingHeader("General & Debug", ImGuiTreeNodeFlags_DefaultOpen))
 			{
-				"Final",
-				"Albedo",
-				"Normal",
-				"Depth",
-				"Light",
-				"Shadow Map",
-				"Skybox",
-			};
-			ImGui::Combo("Debug View", &m_debugView, debugViews, BX_COUNTOF(debugViews));
-			const char* shadowResItems[] = { "1024", "2048", "4096" };
-			int32_t shadowResIndex = m_shadowResolution == 1024 ? 0 : (m_shadowResolution == 4096 ? 2 : 1);
-			if (ImGui::Combo("Shadow Resolution", &shadowResIndex, shadowResItems, BX_COUNTOF(shadowResItems) ) )
-			{
-				m_shadowResolution = shadowResIndex == 0 ? 1024 : (shadowResIndex == 2 ? 4096 : 2048);
-				createFrameBuffers();
+				ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "Backend: %s", m_supportedBackend ? "Hardware Acceletated" : "Fallback mode");
+				const char* debugViews[] = { "Final", "Albedo", "Normal", "Depth", "Light", "Shadow Map", "Skybox" };
+				ImGui::Combo("Debug View", &m_debugView, debugViews, BX_COUNTOF(debugViews));
 			}
-			ImGui::SliderFloat("Shadow Bias", &m_shadowBias, 0.0001f, 0.01f, "%.4f", ImGuiSliderFlags_Logarithmic);
-			ImGui::SliderFloat("Normal Bias", &m_shadowNormalBias, 0.0f, 0.2f, "%.4f");
-			
-			ImGui::Separator();
-			ImGui::Text("Light Settings");
-			ImGui::SliderFloat("Light Azimuth", &m_lightAngles[0], -bx::kPi, bx::kPi);
-			ImGui::SliderFloat("Light Elevation", &m_lightAngles[1], -bx::kPi, 0.0f);
-			ImGui::SliderFloat("Sun Intensity", &m_directionalIntensity, 0.0f, 10.0f, "%.2f");
-			ImGui::SliderFloat("Fill Intensity", &m_fillIntensity, 0.0f, 5.0f, "%.2f");
-			ImGui::SliderFloat("Ambient Intensity", &m_ambientIblIntensity, 0.0f, 2.0f, "%.2f");
-			ImGui::SliderFloat("SSAO Radius", &m_ssaoRadius, 0.0f, 2.0f, "%.2f");
-			ImGui::SliderFloat("SSAO Intensity", &m_ssaoIntensity, 0.0f, 5.0f, "%.2f");
-			ImGui::SliderFloat("IBL Roughness", &m_iblRoughness, 0.0f, 1.0f, "%.2f");
-			ImGui::SliderFloat("IBL Reflectivity", &m_iblReflectivity, 0.0f, 1.0f, "%.2f");
-			ImGui::SliderFloat("Skybox Intensity", &m_skyboxIntensity, 0.0f, 2.0f, "%.2f");
+
+			if (ImGui::CollapsingHeader("Directional Light & Shadows", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				ImGui::SliderFloat("Azimuth", &m_lightAngles[0], -bx::kPi, bx::kPi);
+				ImGui::SliderFloat("Elevation", &m_lightAngles[1], -bx::kPi, 0.0f);
+				ImGui::SliderFloat("Sun Intensity", &m_directionalIntensity, 0.0f, 10.0f, "%.2f");
+				ImGui::SliderFloat("Fill Intensity", &m_fillIntensity, 0.0f, 5.0f, "%.2f");
+
+				ImGui::Separator();
+				ImGui::Checkbox("Enable Shadows", &m_enableShadows);
+				if (m_enableShadows)
+				{
+					const char* shadowResItems[] = { "1024", "2048", "4096" };
+					int32_t shadowResIndex = m_shadowResolution == 1024 ? 0 : (m_shadowResolution == 4096 ? 2 : 1);
+					if (ImGui::Combo("Resolution", &shadowResIndex, shadowResItems, BX_COUNTOF(shadowResItems)))
+					{
+						m_shadowResolution = shadowResIndex == 0 ? 1024 : (shadowResIndex == 2 ? 4096 : 2048);
+						createFrameBuffers(); // Recrear buffers al cambiar resolución
+					}
+					ImGui::SliderFloat("Depth Bias", &m_shadowBias, 0.0001f, 0.01f, "%.5f", ImGuiSliderFlags_Logarithmic);
+					ImGui::SliderFloat("Normal Bias", &m_shadowNormalBias, 0.0f, 0.2f, "%.4f");
+				}
+			}
+
+			if (ImGui::CollapsingHeader("Ambient & IBL", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				ImGui::Checkbox("Enable IBL", &m_enableIBL);
+				ImGui::SliderFloat("Ambient Intensity", &m_ambientIblIntensity, 0.0f, 2.0f, "%.2f");
+				ImGui::SliderFloat("Skybox Intensity", &m_skyboxIntensity, 0.0f, 2.0f, "%.2f");
+				ImGui::SliderFloat("IBL Roughness", &m_iblRoughness, 0.0f, 1.0f, "%.2f");
+				ImGui::SliderFloat("IBL Reflectivity", &m_iblReflectivity, 0.0f, 1.0f, "%.2f");
+
+				ImGui::Separator();
+				ImGui::Text("Screen Space Ambient Occlusion");
+				ImGui::SliderFloat("SSAO Radius", &m_ssaoRadius, 0.0f, 2.0f, "%.2f");
+				ImGui::SliderFloat("SSAO Intensity", &m_ssaoIntensity, 0.0f, 5.0f, "%.2f");
+			}
 			ImGui::End();
 
 			imguiEndFrame();
@@ -705,7 +713,8 @@ public:
 				bgfx::setTransform(identity);
 				bgfx::setVertexBuffer(0, m_planeVbh);
 				bgfx::setIndexBuffer(m_planeIbh);
-				bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
+				// bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
+				bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_CULL_CW);
 				bgfx::submit(RENDER_PASS_SHADOW, m_shadowProgram);
 
 				bgfx::setTransform(identity);
