@@ -197,6 +197,8 @@ public:
 		  	, m_directionalIntensity(4.0f)
 		  	, m_fillIntensity(1.0f)
 		  	, m_ambientIblIntensity(0.1f)
+		  	, m_ssaoRadius(0.5f)
+		  	, m_ssaoIntensity(1.0f)
 		  	, m_iblRoughness(0.35f)
 		  	, m_iblReflectivity(0.5f)
 		  	, m_skyboxIntensity(1.0f)
@@ -616,6 +618,8 @@ public:
 			ImGui::SliderFloat("Sun Intensity", &m_directionalIntensity, 0.0f, 10.0f, "%.2f");
 			ImGui::SliderFloat("Fill Intensity", &m_fillIntensity, 0.0f, 5.0f, "%.2f");
 			ImGui::SliderFloat("Ambient Intensity", &m_ambientIblIntensity, 0.0f, 2.0f, "%.2f");
+			ImGui::SliderFloat("SSAO Radius", &m_ssaoRadius, 0.0f, 2.0f, "%.2f");
+			ImGui::SliderFloat("SSAO Intensity", &m_ssaoIntensity, 0.0f, 5.0f, "%.2f");
 			ImGui::SliderFloat("IBL Roughness", &m_iblRoughness, 0.0f, 1.0f, "%.2f");
 			ImGui::SliderFloat("IBL Reflectivity", &m_iblReflectivity, 0.0f, 1.0f, "%.2f");
 			ImGui::SliderFloat("Skybox Intensity", &m_skyboxIntensity, 0.0f, 2.0f, "%.2f");
@@ -734,7 +738,7 @@ public:
 				float lightDirIntensity[4] = { lightDir.x, lightDir.y, lightDir.z, m_directionalIntensity };
 				const bx::Vec3 lightDir2 = bx::normalize(bx::Vec3{ 0.35f, -0.5f, 1.0f });
 				float lightDirIntensity2[4] = { lightDir2.x, lightDir2.y, lightDir2.z, m_fillIntensity };
-				const float lightAmbient[4] = { m_ambientIblIntensity, 0.0f, 0.0f, 0.0f };
+				const float lightAmbient[4] = { m_ambientIblIntensity, m_ssaoRadius, m_ssaoIntensity, 0.0f };
 
 				float lightMtx[16];
 				const float sy = m_caps->originBottomLeft ? 0.5f : -0.5f;
@@ -941,6 +945,8 @@ public:
 	float m_directionalIntensity;
 	float m_fillIntensity;
 	float m_ambientIblIntensity;
+	float m_ssaoRadius;
+	float m_ssaoIntensity;
 	float m_iblRoughness;
 	float m_iblReflectivity;
 	float m_skyboxIntensity;

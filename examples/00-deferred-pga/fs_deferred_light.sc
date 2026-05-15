@@ -30,9 +30,7 @@ void main()
 
 	// Reconstruct world position (fixed logic from 21-deferred)
 	vec3 clipPos = vec3(v_texcoord0 * 2.0 - 1.0, clipDepth);
-#if !BGFX_SHADER_LANGUAGE_GLSL
 	clipPos.y = -clipPos.y;
-#endif
 	vec3 wpos = clipToWorld(u_invViewProjGeom, clipPos);
 
 	float depthMask = clipDepth < 1.0 ? 1.0 : 0.0;
@@ -70,6 +68,35 @@ void main()
 
 	vec3 ambient = albedo * (1.0 - metalness) * u_lightAmbient.x;
 
+	float ssao = 1.0;
+	float ssaoRadius = u_lightAmbient.y;
+	if (ssaoRadius > 0.0)
+	{
+		float occlusion = 0.0;
+		float ssaoIntensity = u_lightAmbient.z;
+		vec3 dpdx = dFdx(wpos);
+		vec3 dpdy = dFdy(wpos);
+		float dUVdx = length(dFdx(v_texcoord0));
+		float dUVdy = length(dFdy(v_texcoord0));
+		vec2 uvRadius = ssaoRadius * vec2(dUVdx / max(length(dpdx), 0.001), dUVdy / max(length(dpdy), 0.001));
+		float random = fract(sin(dot(v_texcoord0.xy, vec2(12.9898, 78.233))) * 43758.5453);
+		for (int i = 0; i < 8; ++i)
+		{
+			float angle = float(i) * (2.0 * 3.14159 / 8.0) + random;
+			vec2 offset = vec2(cos(angle), sin(angle)) * uvRadius;
+			float sampleDeviceDepth = texture2D(s_depth, v_texcoord0 + offset).x;
+			float sampleClipDepth = toClipSpaceDepth(sampleDeviceDepth);
+			vec3 sampleClipPos = vec3((v_texcoord0 + offset) * 2.0 - 1.0, sampleClipDepth);
+			sampleClipPos.y = -sampleClipPos.y;
+			vec3 sampleWpos = clipToWorld(u_invViewProjGeom, sampleClipPos);
+			vec3 dir = sampleWpos - wpos;
+			float dist = length(dir);
+			occlusion += max(0.0, dot(normal, dir) / dist - 0.2) * (1.0 / (1.0 + dist));
+		}
+		ssao = clamp(1.0 - (occlusion / 8.0) * ssaoIntensity, 0.0, 1.0);
+	}
+	ambient *= ssao;
+
 	vec3 iblSpecular = vec3_splat(0.0);
 	if (u_iblParams.z > 0.5)
 	{
@@ -79,6 +106,7 @@ void main()
 		refl = fixCubeLookup(refl, mip, 256.0);
 		iblSpecular = toLinear(textureCubeLod(s_texCube, refl, mip).xyz) * f0 * clamp(u_iblParams.y, 0.0, 1.0);
 	}
+	iblSpecular *= ssao;
 
 	vec3 lightColor = (ambient + color1 + color2 + iblSpecular) * depthMask;
 	gl_FragColor = vec4(toGamma(lightColor), 1.0);
