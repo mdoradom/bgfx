@@ -15,7 +15,6 @@
 namespace
 {
 
-// Deferred pipeline passes added incrementally in later milestones.
 enum RenderPass : bgfx::ViewId
 {
 	RENDER_PASS_GEOMETRY = 0,
@@ -208,6 +207,8 @@ public:
 		m_sphereMesh = nullptr;
 		m_planeVbh.idx = bgfx::kInvalidHandle;
 		m_planeIbh.idx = bgfx::kInvalidHandle;
+
+		// Un-initialized handles to suppress warnings.
 		s_texColor.idx = bgfx::kInvalidHandle;
 		s_albedo.idx = bgfx::kInvalidHandle;
 		s_light.idx = bgfx::kInvalidHandle;
@@ -243,26 +244,17 @@ public:
 
 	void destroyFrameBuffers()
 	{
-		if (bgfx::isValid(m_gbuffer) )
-		{
-			bgfx::destroy(m_gbuffer);
-		}
+		if (bgfx::isValid(m_gbuffer) ) bgfx::destroy(m_gbuffer);
 		m_gbuffer.idx = bgfx::kInvalidHandle;
 		m_gbufferTex[0].idx = bgfx::kInvalidHandle;
 		m_gbufferTex[1].idx = bgfx::kInvalidHandle;
 		m_gbufferTex[2].idx = bgfx::kInvalidHandle;
 
-		if (bgfx::isValid(m_lightBuffer) )
-		{
-			bgfx::destroy(m_lightBuffer);
-		}
+		if (bgfx::isValid(m_lightBuffer) ) bgfx::destroy(m_lightBuffer);
 		m_lightBuffer.idx = bgfx::kInvalidHandle;
 		m_lightBufferTex.idx = bgfx::kInvalidHandle;
 
-		if (bgfx::isValid(m_shadowMapFB) )
-		{
-			bgfx::destroy(m_shadowMapFB);
-		}
+		if (bgfx::isValid(m_shadowMapFB) ) bgfx::destroy(m_shadowMapFB);
 		m_shadowMapFB.idx = bgfx::kInvalidHandle;
 		m_shadowMapTex.idx = bgfx::kInvalidHandle;
 	}
@@ -303,6 +295,7 @@ public:
 			| BGFX_SAMPLER_V_CLAMP
 			;
 
+		// Use D32F or D24 for high precision shadow map
 		const bgfx::TextureFormat::Enum shadowDepthFormat =
 			bgfx::isTextureValid(0, false, 1, bgfx::TextureFormat::D32F, BGFX_TEXTURE_RT | shadowSamplerFlags)
 			? bgfx::TextureFormat::D32F
@@ -350,20 +343,9 @@ public:
 		// Enable debug text.
 		bgfx::setDebug(m_debug);
 
-		// Set view 0 clear state.
-		bgfx::setViewClear(RENDER_PASS_GEOMETRY
-			, BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
-			, 0x303030ff
-			, 1.0f
-			, 0
-			);
-
-		bgfx::setViewClear(RENDER_PASS_LIGHT
-			, BGFX_CLEAR_COLOR
-			, 0xffffffff
-			, 1.0f
-			, 0
-			);
+		// Set view clear states
+		bgfx::setViewClear(RENDER_PASS_GEOMETRY, BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
+		bgfx::setViewClear(RENDER_PASS_LIGHT, BGFX_CLEAR_COLOR, 0xffffffff, 1.0f, 0);
 
 		PosNormalTexcoordVertex::init();
 		PosTexCoord0Vertex::init();
@@ -416,149 +398,41 @@ public:
 	{
 		destroyFrameBuffers();
 
-		if (NULL != m_sphereMesh)
-		{
-			meshUnload(m_sphereMesh);
-			m_sphereMesh = NULL;
-		}
+		if (NULL != m_sphereMesh) meshUnload(m_sphereMesh);
+		if (bgfx::isValid(m_iblCubeTex)) bgfx::destroy(m_iblCubeTex);
 
-		if (bgfx::isValid(m_iblCubeTex) )
-		{
-			bgfx::destroy(m_iblCubeTex);
-		}
+		bgfx::destroy(m_shadowProgram);
+		bgfx::destroy(m_debugProgram);
+		bgfx::destroy(m_combineProgram);
+		bgfx::destroy(m_lightProgram);
+		bgfx::destroy(m_geomProgram);
 
-		if (bgfx::isValid(m_shadowProgram) )
-		{
-			bgfx::destroy(m_shadowProgram);
-		}
+		bgfx::destroy(u_invViewProj);
+		bgfx::destroy(u_camPos);
+		bgfx::destroy(u_debugParams);
+		bgfx::destroy(u_iblParams);
+		bgfx::destroy(u_shadowParams);
+		bgfx::destroy(u_materialParams);
+		bgfx::destroy(u_baseColorRoughness);
+		bgfx::destroy(u_lightMtx);
+		bgfx::destroy(s_shadowMap);
+		bgfx::destroy(s_texCube);
+		bgfx::destroy(s_light);
+		bgfx::destroy(s_depth);
+		bgfx::destroy(s_normal);
+		bgfx::destroy(u_lightAmbient);
+		bgfx::destroy(u_lightDirIntensity);
+		bgfx::destroy(u_lightDirIntensity2);
+		bgfx::destroy(s_albedo);
+		bgfx::destroy(s_texColor);
 
-		if (bgfx::isValid(m_debugProgram) )
-		{
-			bgfx::destroy(m_debugProgram);
-		}
-
-		if (bgfx::isValid(m_combineProgram) )
-		{
-			bgfx::destroy(m_combineProgram);
-		}
-
-		if (bgfx::isValid(m_lightProgram) )
-		{
-			bgfx::destroy(m_lightProgram);
-		}
-
-		if (bgfx::isValid(m_geomProgram) )
-		{
-			bgfx::destroy(m_geomProgram);
-		}
-
-		if (bgfx::isValid(u_invViewProj) )
-		{
-			bgfx::destroy(u_invViewProj);
-		}
-
-		if (bgfx::isValid(u_camPos) )
-		{
-			bgfx::destroy(u_camPos);
-		}
-
-		if (bgfx::isValid(u_debugParams) )
-		{
-			bgfx::destroy(u_debugParams);
-		}
-
-		if (bgfx::isValid(u_iblParams) )
-		{
-			bgfx::destroy(u_iblParams);
-		}
-
-		if (bgfx::isValid(u_shadowParams) )
-		{
-			bgfx::destroy(u_shadowParams);
-		}
-
-		if (bgfx::isValid(u_materialParams) )
-		{
-			bgfx::destroy(u_materialParams);
-		}
-
-		if (bgfx::isValid(u_baseColorRoughness) )
-		{
-			bgfx::destroy(u_baseColorRoughness);
-		}
-
-		if (bgfx::isValid(u_lightMtx) )
-		{
-			bgfx::destroy(u_lightMtx);
-		}
-
-		if (bgfx::isValid(s_shadowMap) )
-		{
-			bgfx::destroy(s_shadowMap);
-		}
-
-		if (bgfx::isValid(s_texCube) )
-		{
-			bgfx::destroy(s_texCube);
-		}
-
-		if (bgfx::isValid(s_light) )
-		{
-			bgfx::destroy(s_light);
-		}
-
-		if (bgfx::isValid(s_depth) )
-		{
-			bgfx::destroy(s_depth);
-		}
-
-		if (bgfx::isValid(s_normal) )
-		{
-			bgfx::destroy(s_normal);
-		}
-
-		if (bgfx::isValid(u_lightAmbient) )
-		{
-			bgfx::destroy(u_lightAmbient);
-		}
-
-		if (bgfx::isValid(u_lightDirIntensity) )
-		{
-			bgfx::destroy(u_lightDirIntensity);
-		}
-
-		if (bgfx::isValid(u_lightDirIntensity2) )
-		{
-			bgfx::destroy(u_lightDirIntensity2);
-		}
-
-		if (bgfx::isValid(s_albedo) )
-		{
-			bgfx::destroy(s_albedo);
-		}
-
-		if (bgfx::isValid(s_texColor) )
-		{
-			bgfx::destroy(s_texColor);
-		}
-
-		if (bgfx::isValid(m_planeIbh) )
-		{
-			bgfx::destroy(m_planeIbh);
-		}
-
-		if (bgfx::isValid(m_planeVbh) )
-		{
-			bgfx::destroy(m_planeVbh);
-		}
+		bgfx::destroy(m_planeIbh);
+		bgfx::destroy(m_planeVbh);
 
 		cameraDestroy();
-
 		imguiDestroy();
 
-		// Shutdown bgfx.
 		bgfx::shutdown();
-
 		return 0;
 	}
 
@@ -571,7 +445,6 @@ public:
 			{
 				createFrameBuffers();
 			}
-
 			if (resized)
 			{
 				m_oldWidth = m_width;
@@ -590,13 +463,14 @@ public:
 				);
 
 			showExampleDialog(this);
-			ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
+
+			ImGui::SetNextWindowPos(ImVec2(10.0f, 100.0f), ImGuiCond_FirstUseEver);
 			ImGui::SetNextWindowSize(ImVec2(350.0f, 0.0f), ImGuiCond_FirstUseEver);
 			ImGui::Begin("Deferred Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
 			if (ImGui::CollapsingHeader("General & Debug", ImGuiTreeNodeFlags_DefaultOpen))
 			{
-				ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "Backend: %s", m_supportedBackend ? "Hardware Acceletated" : "Fallback mode");
+				ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "Backend: %s", m_supportedBackend ? "Hardware Accelerated" : "Fallback mode");
 				const char* debugViews[] = { "Final", "Albedo", "Normal", "Depth", "Light", "Shadow Map", "Skybox" };
 				ImGui::Combo("Debug View", &m_debugView, debugViews, BX_COUNTOF(debugViews));
 			}
@@ -617,7 +491,7 @@ public:
 					if (ImGui::Combo("Resolution", &shadowResIndex, shadowResItems, BX_COUNTOF(shadowResItems)))
 					{
 						m_shadowResolution = shadowResIndex == 0 ? 1024 : (shadowResIndex == 2 ? 4096 : 2048);
-						createFrameBuffers(); // Recrear buffers al cambiar resolución
+						createFrameBuffers();
 					}
 					ImGui::SliderFloat("Depth Bias", &m_shadowBias, 0.0001f, 0.01f, "%.5f", ImGuiSliderFlags_Logarithmic);
 					ImGui::SliderFloat("Normal Bias", &m_shadowNormalBias, 0.0f, 0.2f, "%.4f");
@@ -669,7 +543,7 @@ public:
 
 				const float azimuth = m_lightAngles[0];
 				const float elevation = m_lightAngles[1];
-				const bx::Vec3 lightDir = 
+				const bx::Vec3 lightDir =
 				{
 					bx::cos(azimuth) * bx::cos(elevation),
 					bx::sin(elevation),
@@ -678,10 +552,25 @@ public:
 
 				float lightView[16];
 				float lightProj[16];
+
 				const bx::Vec3 lightEye = bx::mul(lightDir, -25.0f);
 				const bx::Vec3 lightAt = { 0.0f, 0.0f, 0.0f };
 				bx::mtxLookAt(lightView, lightEye, lightAt);
 				bx::mtxOrtho(lightProj, -25.0f, 25.0f, -25.0f, 25.0f, 1.0f, 60.0f, 0.0f, m_caps->homogeneousDepth);
+
+				float shadowVP[16];
+				bx::mtxMul(shadowVP, lightView, lightProj);
+
+				bx::Vec3 shadowOrigin = { 0.0f, 0.0f, 0.0f };
+				bx::Vec3 shadowPos = bx::mul(shadowOrigin, shadowVP);
+
+				float texelSize = 2.0f / (float)m_shadowResolution;
+
+				float dx = (bx::round(shadowPos.x / texelSize) * texelSize) - shadowPos.x;
+				float dy = (bx::round(shadowPos.y / texelSize) * texelSize) - shadowPos.y;
+
+				lightProj[12] += dx;
+				lightProj[13] += dy;
 
 				bgfx::setViewRect(RENDER_PASS_SHADOW, 0, 0, m_shadowResolution, m_shadowResolution);
 				bgfx::setViewRect(RENDER_PASS_GEOMETRY, 0, 0, uint16_t(m_width), uint16_t(m_height) );
@@ -710,10 +599,12 @@ public:
 				const float planeMaterialParams[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 				bgfx::setUniform(u_baseColorRoughness, planeColorRoughness);
 				bgfx::setUniform(u_materialParams, planeMaterialParams);
+
 				bgfx::setTransform(identity);
 				bgfx::setVertexBuffer(0, m_planeVbh);
 				bgfx::setIndexBuffer(m_planeIbh);
-				// bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
+
+				// Enable Front-Face Culling for Shadows
 				bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_CULL_CW);
 				bgfx::submit(RENDER_PASS_SHADOW, m_shadowProgram);
 
@@ -735,7 +626,7 @@ public:
 					mtx[13] = sphere.m_position.y;
 					mtx[14] = sphere.m_position.z;
 
-					meshSubmit(m_sphereMesh, RENDER_PASS_SHADOW, m_shadowProgram, mtx, BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
+					meshSubmit(m_sphereMesh, RENDER_PASS_SHADOW, m_shadowProgram, mtx, BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_CULL_CW);
 
 					float baseColorRoughness[4] = { material.m_albedo.x, material.m_albedo.y, material.m_albedo.z, material.m_roughness };
 					float materialParams[4] = { material.m_metalness, 0.0f, 0.0f, 0.0f };
@@ -797,8 +688,7 @@ public:
 				bgfx::setTexture(0, s_albedo, m_gbufferTex[0]);
 				bgfx::setTexture(1, s_normal, m_gbufferTex[1]);
 				bgfx::setTexture(2, s_depth, m_gbufferTex[2]);
-				bgfx::setTexture(3, s_shadowMap, m_shadowMapTex,
-					BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_SAMPLER_COMPARE_LESS);
+				bgfx::setTexture(3, s_shadowMap, m_shadowMapTex, BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_SAMPLER_COMPARE_LESS);
 				bgfx::setTexture(4, s_texCube, m_iblCubeTex);
 				screenSpaceQuad(m_caps->originBottomLeft);
 				bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA);
@@ -866,7 +756,6 @@ public:
 				bgfx::touch(RENDER_PASS_GEOMETRY);
 			}
 
-			// Use debug font to print information about this example.
 			bgfx::dbgTextClear();
 			const bgfx::Stats* stats = bgfx::getStats();
 
@@ -881,7 +770,7 @@ public:
 			}
 			else
 			{
-				bgfx::dbgTextPrintf(0, 1, 0x2f, "Deferred Step 4 active: directional shadow map.");
+				bgfx::dbgTextPrintf(0, 1, 0x2f, "Deferred Engine: Shadows, IBL, SSAO & PBR active.");
 			}
 
 			bgfx::dbgTextPrintf(0, 3, 0x0f, "Backbuffer %dW x %dH in pixels, debug text %dW x %dH in characters."
@@ -891,8 +780,6 @@ public:
 				, stats->textHeight
 				);
 
-			// Advance to next frame. Rendering thread will be kicked to
-			// process submitted rendering primitives.
 			bgfx::frame();
 
 			return true;
@@ -908,7 +795,6 @@ public:
 	uint32_t m_debug;
 	uint32_t m_reset;
 
-	// Deferred debug options.
 	bool m_supportedBackend;
 	bool m_deferredSupported;
 	bool m_enableShadows;

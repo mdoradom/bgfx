@@ -12,7 +12,7 @@ uniform vec4 u_lightDirIntensity;
 uniform vec4 u_lightDirIntensity2;
 uniform vec4 u_lightAmbient;
 uniform mat4 u_lightMtx;
-uniform vec4 u_shadowParams;
+uniform vec4 u_shadowParams; // x: Depth Bias, y: Normal Bias, z: Enable, w: Resolution
 uniform mat4 u_invViewProjGeom;
 uniform vec4 u_camPos;
 uniform vec4 u_iblParams;
@@ -22,19 +22,19 @@ float calculateShadow(vec3 wpos, vec3 normal)
 {
 	if (u_shadowParams.z < 0.5) return 1.0;
 
-	// Apply normal bias
+	// Apply normal bias to prevent shadow acne on curved surfaces
 	vec4 shadowProj = mul(u_lightMtx, vec4(wpos + normal * u_shadowParams.y, 1.0));
 	vec3 shadowCoord = shadowProj.xyz / shadowProj.w;
 
-	// Apply depth bias
+	// Apply depth bias to prevent Z-Fighting
 	shadowCoord.z -= u_shadowParams.x;
 
-	// Dynamic texel size based on current resolution
+	// Dynamic texel size based on current shadow resolution
 	float currentRes = max(u_shadowParams.w, 512.0);
 	vec2 texelSize = vec2(1.0 / currentRes, 1.0 / currentRes);
 
 	float visibility = 0.0;
-	// PCF filter with 9 samples
+	// 3x3 PCF filter for smooth shadow edges
 	for (int y = -1; y <= 1; ++y)
 	{
 		for (int x = -1; x <= 1; ++x)
@@ -66,14 +66,14 @@ void main()
 	vec3 wpos = clipToWorld(u_invViewProjGeom, clipPos);
 	vec3 viewDir = normalize(u_camPos.xyz - wpos);
 
-	// 3. Material and Shadow Calculations
+	// 3. Material and Shadows Setup
 	vec3 f0 = mix(vec3_splat(0.04), albedo, metalness);
 	float gloss = 1.0 - roughness;
 	float specPower = mix(8.0, 128.0, gloss * gloss);
 
 	float visibility = calculateShadow(wpos, normal);
 
-	// 4. Directional Light
+	// 4. Primary Directional Light
 	vec3 lightDir1 = normalize(-u_lightDirIntensity.xyz);
 	vec3 h1 = normalize(lightDir1 + viewDir);
 	float ndotl1 = max(dot(normal, lightDir1), 0.0);
@@ -81,7 +81,7 @@ void main()
 	vec3 diffuse1 = albedo * (1.0 - metalness) * ndotl1 * u_lightDirIntensity.w * visibility;
 	vec3 color1 = vec3(1.0, 0.95, 0.8) * (diffuse1 + specular1);
 
-	// 5. Fill Light
+	// 5. Secondary Fill Light (No Shadows)
 	vec3 lightDir2 = normalize(-u_lightDirIntensity2.xyz);
 	vec3 h2 = normalize(lightDir2 + viewDir);
 	float ndotl2 = max(dot(normal, lightDir2), 0.0);
@@ -89,7 +89,7 @@ void main()
 	vec3 diffuse2 = albedo * (1.0 - metalness) * ndotl2 * u_lightDirIntensity2.w;
 	vec3 color2 = vec3(0.5, 0.7, 1.0) * (diffuse2 + specular2);
 
-	// 6. SSAO
+	// 6. Screen Space Ambient Occlusion
 	float ssao = 1.0;
 	float ssaoRadius = u_lightAmbient.y;
 	if (ssaoRadius > 0.0)
@@ -102,6 +102,7 @@ void main()
 		float dUVdy = length(dFdy(v_texcoord0));
 		vec2 uvRadius = ssaoRadius * vec2(dUVdx / max(length(dpdx), 0.001), dUVdy / max(length(dpdy), 0.001));
 		float random = fract(sin(dot(v_texcoord0.xy, vec2(12.9898, 78.233))) * 43758.5453);
+
 		for (int i = 0; i < 8; ++i)
 		{
 			float angle = float(i) * (2.0 * 3.14159 / 8.0) + random;
@@ -118,7 +119,7 @@ void main()
 		ssao = clamp(1.0 - (occlusion / 8.0) * ssaoIntensity, 0.0, 1.0);
 	}
 
-	// 7. Ambient and IBL
+	// 7. Ambient / IBL
 	vec3 ambient = albedo * (1.0 - metalness) * u_lightAmbient.x * ssao;
 	vec3 iblSpecular = vec3_splat(0.0);
 	if (u_iblParams.z > 0.5)
@@ -130,7 +131,7 @@ void main()
 		iblSpecular = toLinear(textureCubeLod(s_texCube, refl, mip).xyz) * f0 * clamp(u_iblParams.y, 0.0, 1.0) * ssao;
 	}
 
-	// 8. Final result
+	// 8. Final Comp
 	vec3 lightColor = (ambient + color1 + color2 + iblSpecular) * depthMask;
 	gl_FragColor = vec4(toGamma(lightColor), 1.0);
 }
