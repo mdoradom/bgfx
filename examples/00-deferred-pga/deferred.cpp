@@ -774,8 +774,8 @@ public:
 				float viewProj[16];
 				bx::mtxMul(viewProj, view, proj);
 				bx::mtxInverse(invViewProj, viewProj);
-
-				float shadowParams[4] = { m_shadowBias, m_shadowNormalBias, m_enableShadows ? 1.0f : 0.0f, 0.0f };
+				
+				float shadowParams[4] = { m_shadowBias, m_shadowNormalBias, m_enableShadows ? 1.0f : 0.0f, (float)m_shadowResolution };
 				float iblParams[4] =
 				{
 					m_iblRoughness,
