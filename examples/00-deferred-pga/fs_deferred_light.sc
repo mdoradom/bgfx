@@ -45,7 +45,9 @@ void main()
 	float visibility = 1.0;
 	if (u_shadowParams.z > 0.5)
 	{
-		visibility = shadow2D(s_shadowMap, shadowProj.xyz / shadowProj.w);
+        vec3 shadowCoord = shadowProj.xyz / shadowProj.w;
+        shadowCoord.z -= u_shadowParams.x;
+        visibility = shadow2D(s_shadowMap, shadowCoord);
 	}
 	
 	vec3 f0 = mix(vec3_splat(0.04), albedo, metalness);

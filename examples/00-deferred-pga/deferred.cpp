@@ -302,7 +302,13 @@ public:
 			| BGFX_SAMPLER_U_CLAMP
 			| BGFX_SAMPLER_V_CLAMP
 			;
-		m_shadowMapTex = bgfx::createTexture2D(m_shadowResolution, m_shadowResolution, false, 1, bgfx::TextureFormat::D16, BGFX_TEXTURE_RT | shadowSamplerFlags);
+
+		const bgfx::TextureFormat::Enum shadowDepthFormat =
+			bgfx::isTextureValid(0, false, 1, bgfx::TextureFormat::D32F, BGFX_TEXTURE_RT | shadowSamplerFlags)
+			? bgfx::TextureFormat::D32F
+			: bgfx::TextureFormat::D24;
+
+		m_shadowMapTex = bgfx::createTexture2D(m_shadowResolution, m_shadowResolution, false, 1, shadowDepthFormat, BGFX_TEXTURE_RT | shadowSamplerFlags);
 		m_shadowMapFB = bgfx::createFrameBuffer(1, &m_shadowMapTex, true);
 	}
 
